@@ -63,6 +63,10 @@ Branches:
               - instsimplify
               - dse
               - dce
+      - Name: simplify-switch
+        Pipes:
+          - Type: simplify-switch
+            UsedContainers: [input, module.ll]
       - Name: detect-stack-size
         Pipes:
           - Type: llvm-pipe
