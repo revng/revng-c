@@ -1,0 +1,47 @@
+#
+# Copyright rev.ng Labs Srl. See LICENSE.md for details.
+#
+# RUN: %revng clift-import-model -i %s | FileCheck %s
+
+Types:
+  # CHECK: !clift.primitive<VoidKind 0>
+  - ID: 100
+    Kind: PrimitiveType
+    PrimitiveKind: Void
+    Size: 0
+
+  # CHECK: !clift.primitive<GenericKind 1>
+  - ID: 201
+    Kind: PrimitiveType
+    PrimitiveKind: Generic
+    Size: 1
+
+  # CHECK: !clift.primitive<PointerOrNumberKind 2>
+  - ID: 302
+    Kind: PrimitiveType
+    PrimitiveKind: PointerOrNumber
+    Size: 2
+
+  # CHECK: !clift.primitive<NumberKind 4>
+  - ID: 404
+    Kind: PrimitiveType
+    PrimitiveKind: Number
+    Size: 4
+
+  # CHECK: !clift.primitive<UnsignedKind 8>
+  - ID: 508
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 8
+
+  # CHECK: !clift.primitive<SignedKind 8>
+  - ID: 608
+    Kind: PrimitiveType
+    PrimitiveKind: Signed
+    Size: 8
+
+  # CHECK: !clift.primitive<FloatKind 12>
+  - ID: 712
+    Kind: PrimitiveType
+    PrimitiveKind: Float
+    Size: 12

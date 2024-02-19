@@ -1,0 +1,64 @@
+#
+# Copyright rev.ng Labs Srl. See LICENSE.md for details.
+#
+# RUN: %revng clift-import-model -i %s | FileCheck %s
+
+Types:
+  - ID: 100
+    Kind: PrimitiveType
+    PrimitiveKind: Void
+    Size: 0
+
+  - ID: 201
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 1
+  - ID: 202
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 2
+  - ID: 204
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 4
+
+    # CHECK:  !clift.defined<
+    # CHECK:    #clift.function<
+    # CHECK:      id = 1001
+    # CHECK:      return_type = !clift.primitive<VoidKind 0>
+    # CHECK:      argument_types = []
+    # CHECK:    >
+    # CHECK:  >
+  - ID: 1001
+    Kind: CABIFunctionType
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/100-PrimitiveType"
+    Arguments: []
+
+    # CHECK:  !clift.defined<
+    # CHECK:    #clift.function<
+    # CHECK:      id = 1002
+    # CHECK:      return_type = !clift.primitive<UnsignedKind 1>
+    # CHECK:      argument_types = [
+    # CHECK:        <
+    # CHECK:          type = !clift.primitive<UnsignedKind 2>
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          type = !clift.primitive<UnsignedKind 4>
+    # CHECK:        >
+    # CHECK:      ]
+    # CHECK:    >
+    # CHECK:  >
+  - ID: 1002
+    Kind: CABIFunctionType
+    ABI: SystemV_x86_64
+    ReturnType:
+      UnqualifiedType: "/Types/201-PrimitiveType"
+    Arguments:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/202-PrimitiveType"
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/204-PrimitiveType"

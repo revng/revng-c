@@ -1,0 +1,50 @@
+#
+# Copyright rev.ng Labs Srl. See LICENSE.md for details.
+#
+# RUN: %revng clift-import-model -i %s | FileCheck %s
+
+Types:
+  - ID: 101
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 1
+  - ID: 102
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 2
+  - ID: 104
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 4
+
+    # CHECK:  !clift.defined<
+    # CHECK:    #clift.union<
+    # CHECK:      id = 1001
+    # CHECK:      fields = [
+    # CHECK:        <
+    # CHECK:          offset = 0
+    # CHECK:          type = !clift.primitive<UnsignedKind 1>
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          offset = 0
+    # CHECK:          type = !clift.primitive<UnsignedKind 2>
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          offset = 0
+    # CHECK:          type = !clift.primitive<UnsignedKind 4>
+    # CHECK:        >
+    # CHECK:      ]
+    # CHECK:    >
+    # CHECK:  >
+  - ID: 1001
+    Kind: UnionType
+    Fields:
+      - Index: 0
+        Type:
+          UnqualifiedType: "/Types/101-PrimitiveType"
+      - Index: 1
+        Type:
+          UnqualifiedType: "/Types/102-PrimitiveType"
+      - Index: 2
+        Type:
+          UnqualifiedType: "/Types/104-PrimitiveType"

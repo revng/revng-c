@@ -1,0 +1,142 @@
+#
+# Copyright rev.ng Labs Srl. See LICENSE.md for details.
+#
+# RUN: %revng clift-import-model -i %s | FileCheck %s
+
+Types:
+  - ID: 104
+    Kind: PrimitiveType
+    PrimitiveKind: Signed
+    Size: 4
+  - ID: 108
+    Kind: PrimitiveType
+    PrimitiveKind: Signed
+    Size: 8
+  - ID: 204
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 4
+  - ID: 208
+    Kind: PrimitiveType
+    PrimitiveKind: Unsigned
+    Size: 8
+
+    # CHECK:  !clift.defined<
+    # CHECK:    #clift.enum<
+    # CHECK:      id = 1104
+    # CHECK:      underlying_type = !clift.primitive<SignedKind 4>
+    # CHECK:      fields = [
+    # CHECK:        <
+    # CHECK:          raw_value = 0
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 1
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 2147483647
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 18446744071562067968
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 18446744073709551615
+    # CHECK:        >
+    # CHECK:      ]
+    # CHECK:    >
+    # CHECK:  >
+  - ID: 1104
+    Kind: EnumType
+    UnderlyingType:
+      UnqualifiedType: "/Types/104-PrimitiveType"
+    Entries:
+      - Value: 0
+      - Value: 1
+      - Value: 0x000000007fffffff # 2^31 - 1
+      - Value: 0xffffffff80000000 # 2^64 - 2^31
+      - Value: 0xffffffffffffffff # 2^64 - 1
+
+    # CHECK:  !clift.defined<
+    # CHECK:    #clift.enum<
+    # CHECK:      id = 1108
+    # CHECK:      underlying_type = !clift.primitive<SignedKind 8>
+    # CHECK:      fields = [
+    # CHECK:        <
+    # CHECK:          raw_value = 0
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 1
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 9223372036854775807
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 9223372036854775808
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 18446744073709551615
+    # CHECK:        >
+    # CHECK:      ]
+    # CHECK:    >
+    # CHECK:  >
+  - ID: 1108
+    Kind: EnumType
+    UnderlyingType:
+      UnqualifiedType: "/Types/108-PrimitiveType"
+    Entries:
+      - Value: 0
+      - Value: 1
+      - Value: 0x7fffffffffffffff # 2^63 - 1
+      - Value: 0x8000000000000000 # 2^63
+      - Value: 0xffffffffffffffff # 2^64 - 1
+
+    # CHECK:  !clift.defined<
+    # CHECK:    #clift.enum<
+    # CHECK:      id = 1204
+    # CHECK:      underlying_type = !clift.primitive<UnsignedKind 4>
+    # CHECK:      fields = [
+    # CHECK:        <
+    # CHECK:          raw_value = 0
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 1
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 4294967295
+    # CHECK:        >
+    # CHECK:      ]
+    # CHECK:    >
+    # CHECK:  >
+  - ID: 1204
+    Kind: EnumType
+    UnderlyingType:
+      UnqualifiedType: "/Types/204-PrimitiveType"
+    Entries:
+      - Value: 0
+      - Value: 1
+      - Value: 0x00000000ffffffff # 2^32 - 1
+
+    # CHECK:  !clift.defined<
+    # CHECK:    #clift.enum<
+    # CHECK:      id = 1208
+    # CHECK:      underlying_type = !clift.primitive<UnsignedKind 8>
+    # CHECK:      fields = [
+    # CHECK:        <
+    # CHECK:          raw_value = 0
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 1
+    # CHECK:        >
+    # CHECK:        <
+    # CHECK:          raw_value = 18446744073709551615
+    # CHECK:        >
+    # CHECK:      ]
+    # CHECK:    >
+    # CHECK:  >
+  - ID: 1208
+    Kind: EnumType
+    UnderlyingType:
+      UnqualifiedType: "/Types/208-PrimitiveType"
+    Entries:
+      - Value: 0
+      - Value: 1
+      - Value: 0xffffffffffffffff # 2^64 - 1

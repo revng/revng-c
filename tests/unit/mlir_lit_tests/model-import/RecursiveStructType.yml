@@ -1,0 +1,34 @@
+#
+# Copyright rev.ng Labs Srl. See LICENSE.md for details.
+#
+# RUN: %revng clift-import-model -i %s | FileCheck %s
+
+Types:
+  # CHECK:  !clift.defined<
+  # CHECK:    #clift.struct<
+  # CHECK:      id = 1001
+  # CHECK:      size = 4
+  # CHECK:      fields = [
+  # CHECK:        <
+  # CHECK:          offset = 0
+  # CHECK:          type = !clift.pointer<
+  # CHECK:            pointee_type = !clift.defined<
+  # CHECK:              #clift.struct<
+  # CHECK:                id = 1001
+  # CHECK:              >
+  # CHECK:            >
+  # CHECK:          >
+  # CHECK:        >
+  # CHECK:      ]
+  # CHECK:    >
+  # CHECK:  >
+  - ID: 1001
+    Kind: StructType
+    Size: 4
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/1001-StructType"
+          Qualifiers:
+            - Kind: Pointer
+              Size: 4
