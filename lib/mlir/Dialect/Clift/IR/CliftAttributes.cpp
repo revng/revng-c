@@ -65,30 +65,18 @@ ArgAttr::verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
   return mlir::success();
 }
 
-using FunctionAttr = mlir::clift::FunctionAttr;
+using mlir::clift::FunctionAttr;
 mlir::LogicalResult
 FunctionAttr::verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                      uint64_t Id,
-                     llvm::StringRef Name,
+                     llvm::StringRef,
                      mlir::clift::ValueType ReturnType,
                      llvm::ArrayRef<mlir::clift::FunctionArgumentAttr> Args) {
-  if (mlir::clift::DefinedType
-        Type = mlir::dyn_cast<mlir::clift::DefinedType>(ReturnType)) {
-    using FunctionAttr = mlir::clift::FunctionAttr;
-    if (mlir::clift::FunctionAttr
-          Definition = mlir::dyn_cast<FunctionAttr>(Type.getElementType()))
+  if (const auto Type = mlir::dyn_cast<mlir::clift::DefinedType>(ReturnType)) {
+    if (mlir::isa<FunctionAttr>(Type.getElementType()))
       return EmitError() << "function type cannot return another function type";
   }
-  std::set<llvm::StringRef> Names;
-  for (auto Arg : Args) {
-    if (Arg.getName().empty())
-      continue;
-    if (Names.contains(Arg.getName())) {
-      return EmitError() << "multiple definitions of function argument named "
-                         << Arg.getName();
-    }
-    Names.insert(Arg.getName());
-  }
+
   return mlir::success();
 }
 
