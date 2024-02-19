@@ -295,6 +295,18 @@ mlir::Attribute mlir::clift::StructType::parse(AsmParser &parser) {
   return parseImpl<StructType>(parser, "union");
 }
 
+static bool isIncompleteType(const mlir::Type T) {
+  if (T.isa<mlir::clift::DefinedType>()) {
+    const mlir::clift::TypeDefinition D = T.cast<mlir::clift::DefinedType>()
+                                            .getElementType();
+    if (D.isa<mlir::clift::StructType>())
+      return not D.cast<mlir::clift::StructType>().isDefinition();
+    if (D.isa<mlir::clift::UnionType>())
+      return not D.cast<mlir::clift::UnionType>().isDefinition();
+  }
+  return false;
+}
+
 mlir::LogicalResult
 mlir::clift::StructType::verify(function_ref<InFlightDiagnostic()> emitError,
                                 uint64_t id) {
@@ -302,52 +314,36 @@ mlir::clift::StructType::verify(function_ref<InFlightDiagnostic()> emitError,
 }
 
 mlir::LogicalResult
-mlir::clift::StructType::verify(function_ref<InFlightDiagnostic()> emitError,
-                                uint64_t ID,
-                                llvm::StringRef Name,
-                                uint64_t Size,
-                                llvm::ArrayRef<FieldAttr> Fields) {
-
+mlir::clift::StructType::verify(const function_ref<InFlightDiagnostic()>
+                                  EmitError,
+                                const uint64_t ID,
+                                llvm::StringRef,
+                                const uint64_t Size,
+                                const llvm::ArrayRef<FieldAttr> Fields) {
   if (Size == 0)
-    return emitError() << "struct type cannot have a size of zero";
+    return EmitError() << "struct type cannot have a size of zero";
 
-  if (Fields.empty())
-    return mlir::success();
+  if (not Fields.empty()) {
+    uint64_t LastEndOffset = 0;
 
-  for (auto [first, second] :
-       llvm::zip(llvm::drop_end(Fields), llvm::drop_begin(Fields))) {
-    auto StructEnd = first.getOffset()
-                     + first.getType()
-                         .cast<mlir::clift::ValueType>()
-                         .getByteSize();
-    if (StructEnd >= second.getOffset()) {
+    for (const auto &Field : Fields) {
+      if (isIncompleteType(Field.getType()))
+        return EmitError() << "Fields of structs must be complete types";
 
-      return emitError() << "Fields of structs must be ordered by offset,  and "
-                            "they cannot "
-                            "overlap";
+      if (Field.getOffset() < LastEndOffset)
+        return EmitError() << "Fields of structs must be ordered by offset, "
+                              "and "
+                              "they cannot overlap";
+
+      LastEndOffset = Field.getOffset()
+                      + Field.getType()
+                          .cast<mlir::clift::ValueType>()
+                          .getByteSize();
     }
-  }
 
-  for (mlir::clift::FieldAttr Field : Fields) {
-    mlir::Type FieldType = Field.getType();
-    mlir::clift::ValueType Casted = FieldType.cast<mlir::clift::ValueType>();
-    if (auto FieldEndPoint = Field.getOffset() + Casted.getByteSize();
-        FieldEndPoint >= Size) {
-      return emitError() << "offset + size of field of struct type is "
-                            "greater "
+    if (LastEndOffset > Size)
+      return EmitError() << "offset + size of field of struct type is greater "
                             "than the struct type size.";
-    }
-  }
-
-  std::set<llvm::StringRef> Names;
-  for (auto Field : Fields) {
-    if (Field.getName().empty())
-      continue;
-    if (Names.contains(Field.getName())) {
-      return emitError() << "multiple definitions of struct field named "
-                         << Field.getName();
-    }
-    Names.insert(Field.getName());
   }
 
   return mlir::success();
