@@ -352,26 +352,19 @@ mlir::clift::StructType::verify(const function_ref<InFlightDiagnostic()>
 mlir::LogicalResult
 mlir::clift::UnionType::verify(function_ref<InFlightDiagnostic()> EmitError,
                                uint64_t ID,
-                               llvm::StringRef Name,
+                               llvm::StringRef,
                                llvm::ArrayRef<FieldAttr> Fields) {
-  if (Fields.size() != 0) {
-    return EmitError() << "union types must have at least a field";
-  }
-  for (auto Field : Fields) {
-    if (Field.getOffset() != 0) {
+  if (Fields.empty())
+    return EmitError() << "union types must have at least one field";
+
+  for (const auto &Field : Fields) {
+    if (isIncompleteType(Field.getType()))
+      return EmitError() << "Fields of unions must be complete types";
+
+    if (Field.getOffset() != 0)
       return EmitError() << "union types offsets must be zero";
-    }
   }
-  std::set<llvm::StringRef> Names;
-  for (auto Field : Fields) {
-    if (Field.getName().empty())
-      continue;
-    if (Names.contains(Field.getName())) {
-      return EmitError() << "multiple definitions of union field named "
-                         << Field.getName();
-    }
-    Names.insert(Field.getName());
-  }
+
   return mlir::success();
 }
 
