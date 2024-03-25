@@ -309,7 +309,7 @@ mlir::Attribute mlir::clift::UnionType::parse(AsmParser &parser) {
 }
 
 mlir::Attribute mlir::clift::StructType::parse(AsmParser &parser) {
-  return parseImpl<StructType>(parser, "union");
+  return parseImpl<StructType>(parser, "struct");
 }
 
 static bool isIncompleteType(const mlir::Type T) {
