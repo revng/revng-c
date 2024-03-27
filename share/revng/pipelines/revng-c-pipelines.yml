@@ -230,6 +230,16 @@ Branches:
           Container: module2.mlir
           Kind: mlir-llvm-module2
           SingleTargetFilename: mlir-llvm-dialect2.mlir
+  - From: convert-to-mlir2
+    Steps:
+      - Name: import-clift-types
+        Pipes:
+          - Type: import-clift-types
+            UsedContainers: [module2.mlir]
+        Artifacts:
+          Container: module2.mlir
+          Kind: mlir-llvm-module2
+          SingleTargetFilename: mlir-llvm-dialect3.mlir
 AnalysesLists:
   - Name: revng-c-initial-auto-analysis
     Analyses:
