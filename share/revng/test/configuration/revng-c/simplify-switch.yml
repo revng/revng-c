@@ -1,0 +1,20 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+commands:
+  #
+  # Run simplify-switch and test against ground truth
+  #
+  - type: revng-c.test-simplify-switch
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-simplify-switch
+    suffix: /
+    command: |-
+      revng artifact --resume "$OUTPUT" decompile-to-single-file --abi-enforcement-level=no --analyses-list=revng-initial-auto-analysis --analyses-list=revng-c-initial-auto-analysis "$INPUT" -o /dev/null;
+      cp "$OUTPUT/simplify-switch/module.ll" ~/;
+      FileCheck --input-file="$OUTPUT/simplify-switch/module.ll" "${SOURCE}.filecheck";

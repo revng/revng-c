@@ -1,0 +1,15 @@
+#
+# Copyright (c) rev.ng Labs Srl. See LICENSE.md for details.
+#
+
+CHECK: define i64 @local_myfunc(i64 %rax_x86_64)
+CHECK: %1 = inttoptr i64 %rax_x86_64 to ptr
+CHECK: %2 = load i64, ptr %1, align 1
+CHECK: %3 = icmp ugt i64 %2, 5
+CHECK: switch i64 %2
+CHECK: i64 4, label
+CHECK: i64 5, label
+CHECK: i64 3, label
+CHECK: i64 0, label
+CHECK: i64 1, label
+CHECK: i64 2, label
