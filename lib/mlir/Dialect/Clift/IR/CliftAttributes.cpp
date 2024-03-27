@@ -153,33 +153,35 @@ void mlir::clift::CliftDialect::printAttribute(::mlir::Attribute Attr,
 
 template<typename AttrType>
 static mlir::Attribute printImpl(mlir::AsmPrinter &P, AttrType Attr) {
+  revng_assert(Attr.getImpl()->isInitialized());
+
+  const uint64_t ID = Attr.getImpl()->getID();
+
   P << Attr.getMnemonic();
   P << "<id = ";
-  size_t ID = Attr.getImpl()->getID();
   P << ID;
-  if (not Attr.getImpl()->isInitialized()) {
-    P << ">";
-    return Attr;
-  }
 
   if (getVisitedType(ID) != nullptr) {
     P << ">";
     return Attr;
   }
-  auto Guard = onTypeVisited(ID, Attr);
 
   P << ", name = ";
   P << "\"" << Attr.getName() << "\"";
-  P << ", ";
+
   if constexpr (std::is_same_v<AttrType, mlir::clift::StructType>) {
+    P << ", ";
     P.printKeywordOrString("size");
     P << " = ";
     P << Attr.getByteSize();
-    P << ", ";
   }
-  P << "fields = [";
+
+  auto Guard = onTypeVisited(ID, Attr);
+
+  P << ", fields = [";
   P.printStrippedAttrOrType(Attr.getImpl()->getFields());
   P << "]>";
+
   return Attr;
 }
 
@@ -192,7 +194,7 @@ mlir::Attribute mlir::clift::StructType::print(AsmPrinter &p) const {
 }
 
 template<typename AttrType>
-AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
+static AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
   const auto OnUnexpectedToken = [&parser,
                                   TypeName](llvm::StringRef name) -> AttrType {
     parser.emitError(parser.getCurrentLocation(),
@@ -226,10 +228,6 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
     return Attr->cast<AttrType>();
   }
 
-  AttrType ToReturn = AttrType::get(parser.getContext(), ID);
-
-  auto Guard = onTypeVisited(ID, ToReturn);
-
   if (parser.parseComma().failed()) {
     return OnUnexpectedToken(",");
   }
@@ -247,12 +245,12 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
     return OnUnexpectedToken("<string>");
   }
 
-  if (parser.parseComma().failed()) {
-    return OnUnexpectedToken(",");
-  }
-
   uint64_t Size;
   if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>) {
+    if (parser.parseComma().failed()) {
+      return OnUnexpectedToken(",");
+    }
+
     if (parser.parseKeyword("size").failed()) {
       return OnUnexpectedToken("keyword 'size'");
     }
@@ -262,12 +260,20 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
     }
 
     if (parser.parseInteger(Size).failed()) {
-      return OnUnexpectedToken("<size_t>");
+      return OnUnexpectedToken("<uint64_t>");
     }
+  }
 
-    if (parser.parseComma().failed()) {
-      return OnUnexpectedToken(",");
-    }
+  AttrType ToReturn;
+  if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>) {
+    ToReturn = AttrType::get(parser.getContext(), ID, OptionalName, Size);
+  } else {
+    ToReturn = AttrType::get(parser.getContext(), ID, OptionalName);
+  }
+  auto Guard = onTypeVisited(ID, ToReturn);
+
+  if (parser.parseComma().failed()) {
+    return OnUnexpectedToken(",");
   }
 
   if (parser.parseKeyword("fields").failed()) {
@@ -282,30 +288,30 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
     return OnUnexpectedToken("[");
   }
 
-  using SmallVectorType = ::llvm::SmallVector<mlir::clift::FieldAttr>;
-  using ParserType = ::mlir::FieldParser<SmallVectorType>;
-  ::mlir::FailureOr<::llvm::SmallVector<mlir::clift::FieldAttr>>
-    Attrs = ParserType::parse(parser);
-  if (::mlir::failed(Attrs)) {
-    parser.emitError(parser.getCurrentLocation(),
-                     "failed to parse Clift_EnumAttr parameter 'fields' "
-                     "which "
-                     "is to be a "
-                     "`::llvm::ArrayRef<mlir::clift::FieldAttr>`");
-  }
+  using FieldsVectorType = ::llvm::SmallVector<mlir::clift::FieldAttr>;
+  using FieldsParserType = ::mlir::FieldParser<FieldsVectorType>;
+  ::mlir::FailureOr<FieldsVectorType> Fields(FieldsVectorType{});
 
-  if (parser.parseRSquare().failed()) {
-    return OnUnexpectedToken("]");
+  if (parser.parseOptionalRSquare().failed()) {
+    Fields = FieldsParserType::parse(parser);
+
+    if (::mlir::failed(Fields)) {
+      parser.emitError(parser.getCurrentLocation(),
+                       "failed to parse Clift_EnumAttr parameter 'fields' "
+                       "which is to be a "
+                       "`::llvm::ArrayRef<mlir::clift::FieldAttr>`");
+    }
+
+    if (parser.parseRSquare().failed()) {
+      return OnUnexpectedToken("]");
+    }
   }
 
   if (parser.parseGreater().failed()) {
     return OnUnexpectedToken(">");
   }
-  if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>) {
-    ToReturn.setBody(OptionalName, Size, *Attrs);
-  } else {
-    ToReturn.setBody(OptionalName, *Attrs);
-  }
+
+  ToReturn.setBody(*Fields);
   return ToReturn;
 }
 
@@ -342,7 +348,7 @@ mlir::LogicalResult mlir::clift::StructType::verify(EmitErrorType EmitError,
 mlir::LogicalResult
 mlir::clift::StructType::verify(const EmitErrorType EmitError,
                                 const uint64_t ID,
-                                llvm::StringRef,
+                                const llvm::StringRef Name,
                                 const uint64_t Size,
                                 const llvm::ArrayRef<FieldAttr> Fields) {
   if (Size == 0)
@@ -374,6 +380,12 @@ mlir::clift::StructType::verify(const EmitErrorType EmitError,
   return mlir::success();
 }
 
+mlir::LogicalResult mlir::clift::UnionType::verify(EmitErrorType EmitError,
+                                                   uint64_t ID,
+                                                   llvm::StringRef Name) {
+  return mlir::success();
+}
+
 mlir::LogicalResult
 mlir::clift::UnionType::verify(EmitErrorType EmitError,
                                uint64_t ID,
@@ -393,74 +405,84 @@ mlir::clift::UnionType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-mlir::clift::StructType mlir::clift::StructType::get(MLIRContext *ctx,
-                                                     uint64_t ID) {
-  return Base::get(ctx, ID);
+mlir::clift::StructType mlir::clift::StructType::get(MLIRContext *Context,
+                                                     uint64_t ID,
+                                                     llvm::StringRef Name,
+                                                     uint64_t Size) {
+  return Base::get(Context, ID, Name, Size);
 }
 
 mlir::clift::StructType
 mlir::clift::StructType::getChecked(EmitErrorType EmitError,
+                                    MLIRContext *Context,
+                                    uint64_t ID,
+                                    llvm::StringRef Name,
+                                    uint64_t Size) {
+  if (failed(verify(EmitError, ID, Name, Size)))
     return {};
-  return get(ctx, ID);
+  return get(Context, ID, Name, Size);
 }
 
 mlir::clift::StructType
-mlir::clift::StructType::get(MLIRContext *ctx,
+mlir::clift::StructType::get(MLIRContext *Context,
                              uint64_t ID,
                              llvm::StringRef Name,
                              uint64_t Size,
                              llvm::ArrayRef<FieldAttr> Fields) {
-  auto Result = Base::get(ctx, ID);
-  Result.setBody(Name, Size, Fields);
+  auto Result = Base::get(Context, ID, Name, Size);
+  Result.setBody(Fields);
   return Result;
 }
 
 mlir::clift::StructType
 mlir::clift::StructType::getChecked(EmitErrorType EmitError,
+                                    MLIRContext *Context,
                                     uint64_t ID,
                                     llvm::StringRef Name,
                                     uint64_t Size,
                                     llvm::ArrayRef<FieldAttr> Fields) {
   if (failed(verify(EmitError, ID, Name, Size, Fields)))
     return {};
-  return get(ctx, ID, Name, Size, Fields);
+  return get(Context, ID, Name, Size, Fields);
 }
 
-mlir::clift::UnionType mlir::clift::UnionType::get(MLIRContext *ctx,
-                                                   uint64_t ID) {
+mlir::clift::UnionType mlir::clift::UnionType::get(MLIRContext *Context,
+                                                   uint64_t ID,
+                                                   llvm::StringRef Name) {
   // Call into the base to get a uniqued instance of this type. The parameter
   // (name) is passed after the context.
-  return Base::get(ctx, ID);
+  return Base::get(Context, ID, Name);
 }
 
 mlir::clift::UnionType
 mlir::clift::UnionType::getChecked(EmitErrorType EmitError,
-                                     EmitError,
-                                   MLIRContext *ctx,
-                                   uint64_t ID) {
-  if (failed(verify(EmitError, ID)))
+                                   MLIRContext *Context,
+                                   uint64_t ID,
+                                   llvm::StringRef Name) {
+  if (failed(verify(EmitError, ID, Name)))
     return {};
-  return get(ctx, ID);
+  return get(Context, ID, Name);
 }
 
 mlir::clift::UnionType
-mlir::clift::UnionType::get(MLIRContext *ctx,
+mlir::clift::UnionType::get(MLIRContext *Context,
                             uint64_t ID,
                             llvm::StringRef Name,
                             llvm::ArrayRef<FieldAttr> Fields) {
   // Call into the base to get a uniqued instance of this type. The parameter
   // (name) is passed after the context.
-  auto Result = Base::get(ctx, ID);
-  Result.setBody(Name, Fields);
+  auto Result = Base::get(Context, ID, Name);
+  Result.setBody(Fields);
   return Result;
 }
 
 mlir::clift::UnionType
 mlir::clift::UnionType::getChecked(EmitErrorType EmitError,
+                                   MLIRContext *Context,
                                    uint64_t ID,
                                    llvm::StringRef Name,
                                    llvm::ArrayRef<FieldAttr> Fields) {
   if (failed(verify(EmitError, ID, Name, Fields)))
     return {};
-  return get(ctx, ID, Name, Fields);
+  return get(Context, ID, Name, Fields);
 }

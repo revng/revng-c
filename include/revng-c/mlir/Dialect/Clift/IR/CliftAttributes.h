@@ -42,14 +42,17 @@ class StructType
 public:
   using Base::Base;
 
-  static StructType get(MLIRContext *ctx, uint64_t ID);
+  static StructType
+  get(MLIRContext *Context, uint64_t ID, llvm::StringRef Name, uint64_t Size);
 
   static StructType
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *ctx,
-             uint64_t ID);
+             MLIRContext *Context,
+             uint64_t ID,
+             llvm::StringRef Name,
+             uint64_t Size);
 
-  static StructType get(MLIRContext *ctx,
+  static StructType get(MLIRContext *Context,
                         uint64_t ID,
                         llvm::StringRef Name,
                         uint64_t Size,
@@ -57,25 +60,22 @@ public:
 
   static StructType
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *ctx,
+             MLIRContext *Context,
              uint64_t ID,
              llvm::StringRef Name,
              uint64_t Size,
              llvm::ArrayRef<FieldAttr> Fields);
 
   static llvm::StringRef getMnemonic() { return "struct"; }
-
   std::string getAlias() const { return getName().str(); }
 
-  void setBody(llvm::StringRef Name,
-               uint64_t Size,
-               llvm::ArrayRef<FieldAttr> fields) {
+  void setBody(const llvm::ArrayRef<FieldAttr> Fields) {
     // Call into the base to mutate the type.
-    LogicalResult result = Base::mutate(Name, Size, fields);
+    LogicalResult Result = Base::mutate(Fields);
 
     // Most types expect the mutation to always succeed, but types can implement
     // custom logic for handling mutation failures.
-    revng_assert(succeeded(result)
+    revng_assert(succeeded(Result)
                  && "attempting to change the body of an already-initialized "
                     "type");
   }
@@ -98,12 +98,14 @@ public:
   Attribute print(AsmPrinter &p) const;
 
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
-                              uint64_t id);
+                              uint64_t ID,
+                              llvm::StringRef Name,
+                              uint64_t Size);
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               uint64_t ID,
                               llvm::StringRef Name,
                               uint64_t Size,
-                              llvm::ArrayRef<FieldAttr> fields);
+                              llvm::ArrayRef<FieldAttr> Fields);
 
   void walkImmediateSubElements(function_ref<void(Attribute)> walkAttrsFn,
                                 function_ref<void(Type)> walkTypesFn) const;
@@ -122,34 +124,36 @@ class UnionType : public Attribute::AttrBase<UnionType,
 public:
   using Base::Base;
 
-  static UnionType get(MLIRContext *ctx, uint64_t ID);
+  static UnionType get(MLIRContext *Context, uint64_t ID, llvm::StringRef Name);
 
   static UnionType
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *ctx,
-             uint64_t ID);
+             MLIRContext *Context,
+             uint64_t ID,
+             llvm::StringRef Name);
 
-  static UnionType get(MLIRContext *ctx,
+  static UnionType get(MLIRContext *Context,
                        uint64_t ID,
                        llvm::StringRef Name,
                        llvm::ArrayRef<FieldAttr> Fields);
 
   static UnionType
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *ctx,
+             MLIRContext *Context,
              uint64_t ID,
              llvm::StringRef Name,
              llvm::ArrayRef<FieldAttr> Fields);
 
   static llvm::StringRef getMnemonic() { return "union"; }
+  std::string getAlias() const { return getName().str(); }
 
-  void setBody(llvm::StringRef Name, llvm::ArrayRef<FieldAttr> fields) {
+  void setBody(const llvm::ArrayRef<FieldAttr> Fields) {
     // Call into the base to mutate the type.
-    LogicalResult result = Base::mutate(Name, fields);
+    LogicalResult Result = Base::mutate(Fields);
 
     // Most types expect the mutation to always succeed, but types can implement
     // custom logic for handling mutation failures.
-    revng_assert(succeeded(result)
+    revng_assert(succeeded(Result)
                  && "attempting to change the body of an already-initialized "
                     "type");
   }
@@ -166,10 +170,8 @@ public:
   uint64_t getId() const { return getImpl()->getID(); }
 
   uint64_t getByteSize() {
-    if (not isDefinition())
-      return 0;
     uint64_t Max = 0;
-    for (auto Field : getFields()) {
+    for (auto const &Field : getFields()) {
       mlir::Type FieldType = Field.getType();
       uint64_t Size = FieldType.cast<mlir::clift::ValueType>().getByteSize();
       Max = Size > Max ? Size : Max;
@@ -181,14 +183,12 @@ public:
   Attribute print(AsmPrinter &p) const;
 
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
-                              uint64_t id) {
-    return mlir::success();
-  }
+                              uint64_t ID,
+                              llvm::StringRef Name);
   static LogicalResult verify(function_ref<InFlightDiagnostic()> emitError,
                               uint64_t ID,
                               llvm::StringRef Name,
-                              llvm::ArrayRef<FieldAttr> fields);
-  std::string getAlias() const { return getName().str(); }
+                              llvm::ArrayRef<FieldAttr> Fields);
 
   // since mlir types and attributes are immutable, the infrastructure must
   // provide to replace a subelement of the hierarchy. These methods allow
