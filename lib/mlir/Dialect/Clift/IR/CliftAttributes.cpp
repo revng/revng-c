@@ -195,6 +195,9 @@ mlir::Attribute mlir::clift::StructType::print(AsmPrinter &p) const {
 
 template<typename AttrType>
 static AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
+  static constexpr bool
+    IsStruct = std::is_same_v<mlir::clift::StructType, AttrType>;
+
   const auto OnUnexpectedToken = [&parser,
                                   TypeName](llvm::StringRef name) -> AttrType {
     parser.emitError(parser.getCurrentLocation(),
@@ -246,7 +249,7 @@ static AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
   }
 
   uint64_t Size;
-  if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>) {
+  if constexpr (IsStruct) {
     if (parser.parseComma().failed()) {
       return OnUnexpectedToken(",");
     }
@@ -265,7 +268,7 @@ static AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
   }
 
   AttrType ToReturn;
-  if constexpr (std::is_same_v<mlir::clift::StructType, AttrType>) {
+  if constexpr (IsStruct) {
     ToReturn = AttrType::get(parser.getContext(), ID, OptionalName, Size);
   } else {
     ToReturn = AttrType::get(parser.getContext(), ID, OptionalName);
@@ -292,7 +295,15 @@ static AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
   using FieldsParserType = ::mlir::FieldParser<FieldsVectorType>;
   ::mlir::FailureOr<FieldsVectorType> Fields(FieldsVectorType{});
 
-  if (parser.parseOptionalRSquare().failed()) {
+  const auto ParseFieldsRSquare = [&]() -> bool {
+    if constexpr (IsStruct) {
+      return parser.parseOptionalRSquare().failed();
+    } else {
+      return false;
+    }
+  };
+
+  if (not ParseFieldsRSquare()) {
     Fields = FieldsParserType::parse(parser);
 
     if (::mlir::failed(Fields)) {
