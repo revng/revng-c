@@ -22,7 +22,23 @@
 #define GET_ATTRDEF_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.cpp.inc"
 
-static thread_local std::map<uint64_t, mlir::Attribute> CurrentlyPrintedTypes;
+static thread_local std::map<uint64_t, mlir::Attribute> CurrentlyVisitedTypes;
+
+static const mlir::Attribute *getVisitedType(const uint64_t ID) {
+  auto const Iterator = CurrentlyVisitedTypes.find(ID);
+  return Iterator == CurrentlyVisitedTypes.end() ? nullptr : &Iterator->second;
+}
+
+[[nodiscard]] static auto onTypeVisited(const uint64_t ID,
+                                        const mlir::Attribute &Attr) {
+  const auto R = CurrentlyVisitedTypes.try_emplace(ID, Attr);
+  revng_assert(R.second);
+
+  return llvm::make_scope_exit([=]() {
+    const auto N = CurrentlyVisitedTypes.erase(ID);
+    revng_assert(N == 1);
+  });
+}
 
 void mlir::clift::CliftDialect::registerAttributes() {
   addAttributes<StructType, UnionType, /* Include the auto-generated clift types
@@ -148,16 +164,12 @@ static mlir::Attribute printImpl(mlir::AsmPrinter &P, AttrType Attr) {
     P << ">";
     return Attr;
   }
-  if (auto Iter = CurrentlyPrintedTypes.find(ID);
-      Iter != CurrentlyPrintedTypes.end()) {
+
+  if (getVisitedType(ID) != nullptr) {
     P << ">";
     return Attr;
   }
-
-  CurrentlyPrintedTypes[ID] = Attr;
-  auto guard = llvm::make_scope_exit([&]() {
-    CurrentlyPrintedTypes.erase(ID);
-  });
+  auto Guard = onTypeVisited(ID, Attr);
 
   P << ", name = ";
   P << "\"" << Attr.getName() << "\"";
@@ -209,21 +221,17 @@ AttrType parseImpl(mlir::AsmParser &parser, llvm::StringRef TypeName) {
     return OnUnepxectedToken("<integer>");
   }
 
-  if (auto Iterator = CurrentlyPrintedTypes.find(ID);
-      Iterator != CurrentlyPrintedTypes.end()) {
+  if (const auto Attr = getVisitedType(ID)) {
     if (parser.parseGreater().failed()) {
-      return OnUnepxectedToken(">");
+      return OnUnexpectedToken(">");
     }
 
-    return Iterator->second.cast<AttrType>();
+    return Attr->cast<AttrType>();
   }
 
   AttrType ToReturn = AttrType::get(parser.getContext(), ID);
 
-  CurrentlyPrintedTypes[ID] = ToReturn;
-  auto guard = llvm::make_scope_exit([&]() {
-    CurrentlyPrintedTypes.erase(ID);
-  });
+  auto Guard = onTypeVisited(ID, ToReturn);
 
   if (parser.parseComma().failed()) {
     return OnUnepxectedToken(",");
