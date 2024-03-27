@@ -1,0 +1,36 @@
+#
+# Copyright rev.ng Labs Srl. See LICENSE.md for details.
+#
+# RUN: %revng clift-import-model -i %s | FileCheck %s
+
+Types:
+  - ID: 101
+    Kind: PrimitiveType
+    PrimitiveKind: Generic
+    Size: 1
+
+    # CHECK:  !clift.defined<
+    # CHECK:    #clift.struct<
+    # CHECK:      id = 1001
+    # CHECK:      size = 1024
+    # CHECK:      fields = [
+    # CHECK:        <
+    # CHECK:          offset = 0
+    # CHECK:          type = !clift.array<
+    # CHECK:            element_type = !clift.primitive<GenericKind 1>
+    # CHECK:            elements_count = 1024
+    # CHECK:          >
+    # CHECK:        >
+    # CHECK:      ]
+    # CHECK:    >
+    # CHECK:  >
+  - ID: 1001
+    Kind: StructType
+    Size: 1024
+    Fields:
+      - Offset: 0
+        Type:
+          UnqualifiedType: "/Types/101-PrimitiveType"
+          Qualifiers:
+            - Kind: Array
+              Size: 1024
