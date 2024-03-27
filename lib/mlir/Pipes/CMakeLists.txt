@@ -1,5 +1,5 @@
 revng_add_analyses_library(revngcMLIRPipes revngc MLIRPipe.cpp
-                           MLIRContainer.cpp)
+                           MLIRContainer.cpp ImportLLVMToMLIRPipe.cpp)
 
 target_link_libraries(
   revngcMLIRPipes

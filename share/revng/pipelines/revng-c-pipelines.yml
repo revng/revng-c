@@ -18,6 +18,8 @@ Containers:
     Type: type-kind-target-container
   - Name: model-type-definitions.tar.gz
     Type: model-type-definitions
+  - Name: module2.mlir
+    Type: mlir-module-2
 Branches:
   - From: enforce-abi
     Steps:
@@ -214,6 +216,20 @@ Branches:
           Container: module.mlir
           Kind: mlir-llvm-module
           SingleTargetFilename: mlir-llvm-dialect.mlir
+  - From: make-segment-ref
+    Steps:
+      - Name: convert-to-mlir2
+        Pipes:
+          - Type: llvm-pipe
+            UsedContainers: [module.ll]
+            Passes:
+              - prepare-llvmir-for-mlir
+          - Type: import-llvm-to-mlir2
+            UsedContainers: [module.ll, module2.mlir]
+        Artifacts:
+          Container: module2.mlir
+          Kind: mlir-llvm-module2
+          SingleTargetFilename: mlir-llvm-dialect2.mlir
 AnalysesLists:
   - Name: revng-c-initial-auto-analysis
     Analyses:
