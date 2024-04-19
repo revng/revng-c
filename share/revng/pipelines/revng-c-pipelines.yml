@@ -207,6 +207,21 @@ Branches:
           Container: model-type-definitions.tar.gz
           Kind: model-type-definition
           SingleTargetFilename: type.h
+  - From: late-optimize
+    Steps:
+      - Name: cleanup-ir
+        Pipes:
+          - Type: make-segment-ref
+            UsedContainers: [input, module.ll]
+          - Type: llvm-pipe
+            UsedContainers: [module.ll]
+            Passes:
+              - cleanup-ir
+              - dce
+        Artifacts:
+          Container: module.ll
+          Kind: stack-accesses-segregated
+          SingleTargetFilename: stack_access_segregate.ll
   - From: make-segment-ref
     Steps:
       - Name: convert-to-mlir
