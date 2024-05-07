@@ -1,5 +1,5 @@
 #
-# This file is distributed under the MIT License. See LICENSE.md for details.
+# This file is distributed under the MIT License. See LICENSE.mit for details.
 #
 # lit defines config and then loads this file, so we must prevent check-conventions to complain about config not being defined
 # flake8: noqa: F821

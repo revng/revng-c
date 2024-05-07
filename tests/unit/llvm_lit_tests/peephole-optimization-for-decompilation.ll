@@ -1,5 +1,5 @@
 ;
-; This file is distributed under the MIT License. See LICENSE.md for details.
+; This file is distributed under the MIT License. See LICENSE.mit for details.
 ;
 
 ; RUN: %revngopt -peephole-opt-for-decompilation %s -S -o - | FileCheck %s

@@ -2,7 +2,7 @@
 /// \brief Use to edit Types by omitting rewriting of Model directly
 
 //
-// This file is distributed under the MIT License. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.mit for details.
 //
 
 #include <fstream>
