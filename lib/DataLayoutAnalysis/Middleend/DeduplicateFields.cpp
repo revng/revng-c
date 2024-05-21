@@ -453,6 +453,7 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
 
               if (isPointerEdge(NotMergedLink)) {
                 revng_log(Log, "skip pointer edge");
+                continue;
               }
 
               auto [IsMerged,
