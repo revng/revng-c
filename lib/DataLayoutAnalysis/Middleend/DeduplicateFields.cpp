@@ -505,7 +505,6 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               revng_log(Log, "The merge has erased the following nodes:");
               for (auto &ErasedNode : Erased) {
                 LoggerIndent MoreMoreMoreIndent{ Log };
-                revng_log(Log, ErasedNode->ID);
                 // The ErasedNode has been deleted while merging, so we never
                 // want it to be processed again.
                 bool Erased = FieldsToCompare.remove(ErasedNode);
