@@ -484,7 +484,7 @@ BOOST_AUTO_TEST_CASE(ComputeUpperMemberAccesses_basic) {
       NInstance++;
       break;
     default:
-      revng_check(false);
+      revng_abort();
     }
   }
   revng_check(NInstance == 3);
@@ -557,7 +557,7 @@ BOOST_AUTO_TEST_CASE(ComputeNonInterferingComponents_basic) {
       NInstance++;
       break;
     default:
-      revng_check(false);
+      revng_abort();
     }
   }
   revng_check(NInstance == 2);

@@ -79,7 +79,7 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
       for (; I != E; ++I) {
         Visited.insert(I->begin(), I->end());
         if (I.hasCycle())
-          revng_check(false);
+          revng_abort();
       }
     }
   }
@@ -341,7 +341,7 @@ static bool removeBackedgesFromSCC(LayoutTypeSystem &TS) {
       for (; I != E; ++I) {
         Visited.insert(I->begin(), I->end());
         if (I.hasCycle())
-          revng_check(false);
+          revng_abort();
       }
     }
   }

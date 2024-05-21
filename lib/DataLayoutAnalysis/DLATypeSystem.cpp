@@ -497,7 +497,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
     if (not NodePtr) {
       if (VerifyDLALog.isEnabled()) {
         revng_log(VerifyDLALog, "found a null node");
-        revng_check(false);
+        revng_abort();
       }
       return false;
     }
@@ -506,7 +506,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
       if (P.first == nullptr) {
         if (VerifyDLALog.isEnabled()) {
           revng_log(VerifyDLALog, NodePtr->ID << " has null successor");
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -520,7 +520,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
                                       << " does not have a successor edge to "
                                          "NodePtr with label: "
                                       << *P.second);
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -529,7 +529,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
       if (P.first == nullptr) {
         if (VerifyDLALog.isEnabled()) {
           revng_log(VerifyDLALog, NodePtr->ID << " has null predecessor");
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -543,7 +543,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
                                     << " does not have a predecessor edge to "
                                        "NodePtr with label: "
                                     << *P.second);
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -556,7 +556,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
         if (VerifyDLALog.isEnabled()) {
           revng_log(VerifyDLALog,
                     "NodePtr: " << NodePtr->ID << " has self successor edge");
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -568,7 +568,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
         if (VerifyDLALog.isEnabled()) {
           revng_log(VerifyDLALog,
                     "NodePtr: " << NodePtr->ID << " has self predecessor edge");
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -583,7 +583,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
         if (IsPointer) {
           if (VerifyDLALog.isEnabled()) {
             revng_log(VerifyDLALog, "has 2 pointer edges " << NodePtr->ID);
-            revng_check(false);
+            revng_abort();
           }
           return false;
         }
@@ -595,7 +595,7 @@ bool LayoutTypeSystem::verifyConsistency() const {
       if (IsPointer and NonPtrChildren > 0) {
         if (VerifyDLALog.isEnabled()) {
           revng_log(VerifyDLALog, "is pointer and struct " << NodePtr->ID);
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -629,7 +629,7 @@ bool LayoutTypeSystem::verifyDAG() const {
       if (I.hasCycle()) {
         if (VerifyDLALog.isEnabled()) {
           revng_log(VerifyDLALog, I->front()->ID << " is involved in loop");
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -661,7 +661,7 @@ bool LayoutTypeSystem::verifyInstanceDAG() const {
         if (VerifyDLALog.isEnabled()) {
           revng_log(VerifyDLALog,
                     I->front()->ID << " is involved in instance loop");
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -693,7 +693,7 @@ bool LayoutTypeSystem::verifyPointerDAG() const {
         if (VerifyDLALog.isEnabled()) {
           revng_log(VerifyDLALog,
                     I->front()->ID << " is involved in pointer loop");
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -712,7 +712,7 @@ bool LayoutTypeSystem::verifyNoEquality() const {
       if (isEqualityEdge(Edge)) {
         if (VerifyDLALog.isEnabled()) {
           revng_log(VerifyDLALog, Node->ID << " has equality edge");
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -742,7 +742,7 @@ bool LayoutTypeSystem::verifyInstanceAtOffset0DAG() const {
           revng_log(VerifyDLALog,
                     I->front()->ID << " is involved in instance loop at offset "
                                       "0");
-          revng_check(false);
+          revng_abort();
         }
         return false;
       }
@@ -757,7 +757,7 @@ bool LayoutTypeSystem::verifyLeafs() const {
     if (isLeaf(Node) and Node->Size == 0) {
       if (VerifyDLALog.isEnabled()) {
         revng_log(VerifyDLALog, Node->ID << " is leaf but has 0 size");
-        revng_check(false);
+        revng_abort();
       }
       return false;
     }
@@ -774,7 +774,7 @@ bool LayoutTypeSystem::verifyUnions() const {
       if (VerifyDLALog.isEnabled()) {
         revng_log(VerifyDLALog,
                   Node->ID << " is union but has less than 2 fields");
-        revng_check(false);
+        revng_abort();
       }
       return false;
     }
