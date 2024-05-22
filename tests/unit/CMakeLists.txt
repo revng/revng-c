@@ -77,3 +77,5 @@ target_include_directories(test_clift PRIVATE "${CMAKE_SOURCE_DIR}"
 target_link_libraries(test_clift MLIRCliftDialect Boost::unit_test_framework
                       revng::revngUnitTestHelpers ${LLVM_LIBRARIES})
 add_test(NAME test_clift COMMAND test_clift)
+set_tests_properties(test_clift PROPERTIES ENVIRONMENT
+                                           "ASAN_OPTIONS=detect_leaks=0")

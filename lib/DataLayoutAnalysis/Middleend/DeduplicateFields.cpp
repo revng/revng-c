@@ -54,16 +54,26 @@ static order cmpNodes(const LTSN *A, const LTSN *B) {
 
   size_t NChild1 = A->Successors.size();
   size_t NChild2 = B->Successors.size();
-  const auto NChildCmp = NChild1 <=> NChild2;
+  auto NChildCmp = NChild1 <=> NChild2;
   if (NChildCmp != order::equal) {
     revng_log(CmpLog,
               "Different number of successors:  node "
                 << A->ID << " has " << NChild1 << " successors, node " << B->ID
-                << " has" << NChild2 << " successors");
+                << " has " << NChild2 << " successors");
     return NChildCmp;
   }
 
-  return order::equal;
+  size_t NPtrChild1 = llvm::count_if(A->Successors, isPointerEdge);
+  size_t NPtrChild2 = llvm::count_if(B->Successors, isPointerEdge);
+  NChildCmp = NPtrChild1 <=> NPtrChild2;
+  if (NChildCmp != order::equal) {
+    revng_log(CmpLog,
+              "Different number of pointer successors:  node "
+                << A->ID << " has " << NPtrChild1
+                << " pointer successors, node " << B->ID << " has "
+                << NPtrChild2 << " pointer successors");
+  }
+  return NChildCmp;
 }
 
 /// Strong ordering for edges: order by kind, then by offset expression
@@ -443,6 +453,7 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
 
               if (isPointerEdge(NotMergedLink)) {
                 revng_log(Log, "skip pointer edge");
+                continue;
               }
 
               auto [IsMerged,
@@ -494,7 +505,6 @@ bool DeduplicateFields::runOnTypeSystem(LayoutTypeSystem &TS) {
               revng_log(Log, "The merge has erased the following nodes:");
               for (auto &ErasedNode : Erased) {
                 LoggerIndent MoreMoreMoreIndent{ Log };
-                revng_log(Log, ErasedNode->ID);
                 // The ErasedNode has been deleted while merging, so we never
                 // want it to be processed again.
                 bool Erased = FieldsToCompare.remove(ErasedNode);
