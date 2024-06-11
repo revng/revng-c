@@ -1540,8 +1540,27 @@ struct SegregateStackAccessesPipe {
   }
 
   void registerPasses(legacy::PassManager &Manager) {
-    Manager.add(new SegregateStackAccessesPass());
+    Manager.add(new SegregateStackAccessesPass(/* IsLegacy = */ false));
   }
 };
 
-static pipeline::RegisterLLVMPass<SegregateStackAccessesPipe> Y;
+static constexpr const char *LegacyFlag = "legacy-segregate-stack-accesses";
+
+struct LegacySegregateStackAccessesPipe {
+  static constexpr auto Name = LegacyFlag;
+
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace pipeline;
+    using namespace revng::kinds;
+    return { ContractGroup::transformOnlyArgument(StackPointerPromoted,
+                                                  StackAccessesSegregated,
+                                                  InputPreservation::Erase) };
+  }
+
+  void registerPasses(legacy::PassManager &Manager) {
+    Manager.add(new SegregateStackAccessesPass(/* IsLegacy = */ true));
+  }
+};
+
+static pipeline::RegisterLLVMPass<SegregateStackAccessesPipe> X;
+static pipeline::RegisterLLVMPass<LegacySegregateStackAccessesPipe> Y;

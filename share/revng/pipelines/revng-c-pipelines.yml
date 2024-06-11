@@ -97,14 +97,14 @@ Branches:
           - Name: detect-stack-size
             Type: detect-stack-size
             UsedContainers: [module.ll]
-      - Name: segregate-stack-accesses
+      - Name: legacy-segregate-stack-accesses
         Pipes:
           - Type: llvm-pipe
             UsedContainers: [module.ll]
             Passes:
               - hoist-struct-phis
-              - segregate-stack-accesses
-      - Name: late-optimize
+              - legacy-segregate-stack-accesses
+      - Name: legacy-late-optimize
         Pipes:
           - Type: llvm-pipe
             UsedContainers: [module.ll]
@@ -139,7 +139,7 @@ Branches:
         Artifacts:
           Container: module.ll
           Kind: stack-accesses-segregated
-          SingleTargetFilename: stack_access_segregate.ll
+          SingleTargetFilename: legacy_stack_access_segregate.ll
         Analyses:
           - Name: analyze-data-layout
             Type: analyze-data-layout
@@ -248,7 +248,7 @@ Branches:
         Artifacts:
           Container: module.ll
           Kind: stack-accesses-segregated
-          SingleTargetFilename: stack_access_segregate.ll
+          SingleTargetFilename: legacy_stack_access_segregate.ll
   - From: make-segment-ref
     Steps:
       - Name: convert-to-mlir

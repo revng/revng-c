@@ -24,7 +24,16 @@ struct SegregateStackAccessesPass : public llvm::ModulePass {
 public:
   static char ID;
 
-  SegregateStackAccessesPass() : llvm::ModulePass(ID) {}
+  /// This pass has two modes of operation:
+  /// - when IsLegacy is true it uses old FunctionTags, and dedicated functions
+  ///   to represent local variables and accesses to them
+  /// - when IsLegacy is false it uses regular LLVM alloca/load/store
+  /// instructions
+  ///   to represent local variables and accesses to them
+  const bool IsLegacy;
+
+  SegregateStackAccessesPass(bool Legacy) :
+    llvm::ModulePass(ID), IsLegacy(Legacy) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
