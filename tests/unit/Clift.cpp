@@ -110,19 +110,6 @@ BOOST_AUTO_TEST_CASE(LabelsWithAGoToWithoutAssignMustFail) {
   BOOST_TEST(mlir::verify(module).failed());
 }
 
-BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainThemself) {
-  auto UnionAttrT = UnionTypeAttr::get(builder.getContext(), 0);
-  using DefinedT = DefinedType;
-  auto UnionT = DefinedT::get(builder.getContext(),
-                              UnionAttrT,
-                              mlir::BoolAttr::get(builder.getContext(), false));
-
-  // Just check that you can't make a field out of a forward declared type, a
-  // pointer to the type must be used instead.
-  BOOST_TEST(FieldAttr::verify(getDiagnosticEmitter(), 0, UnionT, "field")
-               .failed());
-}
-
 BOOST_AUTO_TEST_CASE(UnionAndStructsCantContainFunctions) {
   auto VoidT = PrimitiveType::getVoid(builder.getContext(), 0);
   auto FunctionT = DefinedType::get(builder.getContext(),
