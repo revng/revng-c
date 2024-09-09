@@ -194,8 +194,7 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
                                                             {},
                                                             "segmentRef");
 
-              auto UniqueIDMDName = FunctionTags::UniqueIDMDName;
-              if (SegmentRefFunction->getMetadata(UniqueIDMDName) == nullptr) {
+              if (not hasSegmentKeyMetadata(*SegmentRefFunction)) {
                 setSegmentKeyMetadata(*SegmentRefFunction,
                                       StartAddress,
                                       VirtualSize);
