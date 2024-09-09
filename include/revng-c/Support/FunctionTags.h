@@ -17,6 +17,10 @@ class ExtractValueInst;
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 namespace FunctionTags {
+
+inline const char *StackTypeMDName = "revng.stack_type";
+inline const char *VariableTypeMDName = "revng.variable_type";
+
 extern Tag AllocatesLocalVariable;
 extern Tag ReturnsPolymorphic;
 extern Tag IsRef;

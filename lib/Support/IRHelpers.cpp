@@ -12,12 +12,14 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Metadata.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/MetaAddress.h"
 
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
+#include "revng-c/Support/ModelHelpers.h"
 
 template<typename T>
 concept DerivedValue = std::is_base_of_v<llvm::Value, T>;
@@ -186,6 +188,70 @@ extractSegmentKeyFromMetadata(const llvm::Function &F) {
   uint64_t VirtualSize = cast<ConstantInt>(VSMD)->getZExtValue();
 
   return { StartAddress, VirtualSize };
+}
+
+void setStackTypeMetadata(llvm::Instruction *I, const model::Type &StackType) {
+  llvm::Constant *
+    StackTypeStringConstant = serializeToLLVMString(StackType, *I->getModule());
+  using CAM = llvm::ConstantAsMetadata;
+  auto &Context = I->getContext();
+  QuickMetadata QMD(Context);
+  I->setMetadata(FunctionTags::StackTypeMDName,
+                 QMD.tuple({ CAM::get(StackTypeStringConstant) }));
+}
+
+bool hasStackTypeMetadata(const llvm::Instruction *I) {
+  auto &C = I->getContext();
+  auto StackTypeMDKind = C.getMDKindID(FunctionTags::StackTypeMDName);
+  return nullptr != I->getMetadata(StackTypeMDKind);
+}
+
+model::UpcastableType getStackTypeFromMetadata(llvm::Instruction *I,
+                                               const model::Binary &Model) {
+  revng_assert(hasStackTypeMetadata(I));
+
+  auto &C = I->getContext();
+  auto StackTypeMDKind = C.getMDKindID(FunctionTags::StackTypeMDName);
+  auto *Node = I->getMetadata(StackTypeMDKind);
+
+  using CAM = llvm::ConstantAsMetadata;
+  auto *StackTypeStringConstant = cast<CAM>(Node->getOperand(0))->getValue();
+  auto StackType = deserializeFromLLVMString(StackTypeStringConstant, Model);
+  revng_assert(not StackType.isEmpty());
+  return StackType;
+}
+
+void setVariableTypeMetadata(llvm::Instruction *I,
+                             const model::Type &VariableType) {
+  llvm::Constant
+    *VarTypeStringConstant = serializeToLLVMString(VariableType,
+                                                   *I->getModule());
+  using CAM = llvm::ConstantAsMetadata;
+  auto &Context = I->getContext();
+  QuickMetadata QMD(Context);
+  I->setMetadata(FunctionTags::VariableTypeMDName,
+                 QMD.tuple({ CAM::get(VarTypeStringConstant) }));
+}
+
+bool hasVariableTypeMetadata(const llvm::Instruction *I) {
+  auto &C = I->getContext();
+  auto VariableTypeMDKind = C.getMDKindID(FunctionTags::VariableTypeMDName);
+  return nullptr != I->getMetadata(VariableTypeMDKind);
+}
+
+model::UpcastableType getVariableTypeFromMetadata(llvm::Instruction *I,
+                                                  const model::Binary &Model) {
+  revng_assert(hasVariableTypeMetadata(I));
+
+  auto &C = I->getContext();
+  auto VariableTypeMDKind = C.getMDKindID(FunctionTags::VariableTypeMDName);
+  auto *Node = I->getMetadata(VariableTypeMDKind);
+
+  using CAM = llvm::ConstantAsMetadata;
+  auto *VarTypeStringConstant = cast<CAM>(Node->getOperand(0))->getValue();
+  auto VarType = deserializeFromLLVMString(VarTypeStringConstant, Model);
+  revng_assert(not VarType.isEmpty());
+  return VarType;
 }
 
 void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
