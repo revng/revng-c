@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Support/OpaqueFunctionsPool.h"
+
 #include "revng-c/Support/ModelHelpers.h"
 
 namespace llvm {
@@ -62,20 +64,33 @@ class LocalVariableHelper {
 
   const bool IsLegacy = false;
 
+  /// Pool of functions that represent allocation of local variables
+  OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
+
+  /// Pool of functions that represent the AddressOf operator.
+  /// This is a pointer to a pool, because users of of LocalVariableHelpers
+  /// typically want to inject other AddressOf operations, which means that they
+  /// need to have a shared pool of AddressOf, in order not to go out of sync.
+  OpaqueFunctionsPool<TypePair> &AddressOfPool;
+
+  /// LLVM Function used to represent the allocation of the stack frame.
+  llvm::Function *StackFrameAllocator = nullptr;
+
+  /// LLVM Function used to represent the allocation of the stack arguments for
+  /// a call to an isolated function.
+  llvm::Function *CallStackArgumentsAllocator = nullptr;
+
   /// @}
+
+private:
+  LocalVariableHelper(const model::Binary &TheBinary,
+                      llvm::Module &TheModule,
+                      bool Legacy,
+                      llvm::GlobalValue *StackPointer,
+                      OpaqueFunctionsPool<TypePair> *TheAddressOfPool);
 
 public:
   ~LocalVariableHelper() = default;
-
-  LocalVariableHelper(const model::Binary &TheBinary,
-                      llvm::Module &TheModule,
-                      bool Legacy) :
-    Binary(TheBinary),
-    M(TheModule),
-    PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
-    Int8Ty(llvm::Type::getInt8Ty(M.getContext())),
-    F(nullptr),
-    IsLegacy(Legacy) {}
 
   LocalVariableHelper(const LocalVariableHelper &) = default;
 
@@ -84,11 +99,63 @@ public:
   bool isLegacy() const { return IsLegacy; }
 
 public:
+  /// Factory methods:
+  /// @{
+
+  /// Create a LocalVariableHelper in legacy mode.
+  /// TODO: drop when legacy mode is obsolete.
+  static LocalVariableHelper
+  makeLegacy(const model::Binary &TheBinary,
+             llvm::Module &TheModule,
+             llvm::GlobalValue *StackPointer,
+             OpaqueFunctionsPool<TypePair> &TheAddressOfPool) {
+    return LocalVariableHelper(TheBinary,
+                               TheModule,
+                               /* Legacy */ true,
+                               StackPointer,
+                               &TheAddressOfPool);
+  }
+
+  /// Create a LocalVariableHelper in non-legacy mode.
+  static LocalVariableHelper make(const model::Binary &TheBinary,
+                                  llvm::Module &TheModule) {
+    return LocalVariableHelper(TheBinary,
+                               TheModule,
+                               /* Legacy */ false,
+                               /* StackPointer */ nullptr,
+                               /* TheAddressOfPool */ nullptr);
+  }
+
+  /// @}
+
+public:
+  /// Sets the function where the LocalVariableHelper injects instructions
+  /// representing local variables.
   void setTargetFunction(llvm::Function *NewF) { F = NewF; }
 
-  llvm::Instruction *createLocalVariable(const model::Type &VariableType) const;
+  /// Creates an llvm::Instruction that models the allocation of a local
+  /// variable.
+  /// The created instruction is inserted at the beginning of the function F.
+  /// This is typically an alloca, but it's a call to LocalVariable in legacy
+  /// mode.
+  /// TODO: this method can become const when we drop legacy mode.
+  llvm::Instruction *createLocalVariable(const model::Type &VariableType);
 
-  llvm::Instruction *createStackFrameVariable() const;
+  /// Creates an llvm::Instruction that models the allocation of a local
+  /// variable representing the stack frame.
+  /// This is typically an alloca, but it's a call to LocalVariable in legacy
+  /// mode.
+  /// TODO: this method can become const when we drop legacy mode.
+  llvm::Instruction *createStackFrameVariable();
+
+  /// Creates an llvm::Instruction that models the allocation of a local
+  /// variable to be passed as a stack argument to a call instruction.
+  /// This is typically an alloca, but it's a call to LocalVariable in legacy
+  /// mode.
+  /// TODO: this method can be dropped when we drop legacy mode, because the
+  /// callers can just switch to call createLocalVariable
+  llvm::Instruction *
+  createCallStackArgumentVariable(const model::Type &VariableType);
 
 private:
   /// Legacy methods for creating local variables.
@@ -96,10 +163,9 @@ private:
   /// TODO: drop these when we drop legacy mode
   /// @{
 
-  llvm::Instruction *
-  createLegacyLocalVariable(const model::Type &VariableType) const;
+  llvm::Instruction *createLegacyLocalVariable(const model::Type &VariableType);
 
-  llvm::Instruction *createLegacyStackFrameVariable() const;
+  llvm::Instruction *createLegacyStackFrameVariable();
 
   /// @}
 };
