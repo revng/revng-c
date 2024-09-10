@@ -25,15 +25,15 @@ public:
   static char ID;
 
   /// This pass has two modes of operation:
-  /// - when IsLegacy is true it uses old FunctionTags, and dedicated functions
-  ///   to represent local variables and accesses to them
-  /// - when IsLegacy is false it uses regular LLVM alloca/load/store
-  /// instructions
-  ///   to represent local variables and accesses to them
-  const bool IsLegacy;
+  /// - when LegacyLocalVariables is true it uses old FunctionTags, and
+  ///   dedicated functions to represent local variables and accesses to them
+  /// - when LegacyLocalVariables is false it uses regular LLVM
+  ///   alloca/load/store instructions to represent local variables and accesses
+  ///   to them
+  const bool LegacyLocalVariables;
 
   SegregateStackAccessesPass(bool Legacy) :
-    llvm::ModulePass(ID), IsLegacy(Legacy) {}
+    llvm::ModulePass(ID), LegacyLocalVariables(Legacy) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 

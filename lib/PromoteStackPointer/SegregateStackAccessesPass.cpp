@@ -28,6 +28,7 @@
 #include "revng-c/PromoteStackPointer/SegregateStackAccessesPass.h"
 #include "revng-c/Support/FunctionTags.h"
 #include "revng-c/Support/IRHelpers.h"
+#include "revng-c/Support/LocalVariableHelper.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 #include "Helpers.h"
@@ -265,7 +266,6 @@ private:
   Function *StackFrameAllocator = nullptr;
   Function *CallStackArgumentsAllocator = nullptr;
   std::set<Instruction *> ToPurge;
-  /// Builder for StackArgumentsAllocator calls
   IRBuilder<> SABuilder;
   model::VerifyHelper VH;
   const size_t CallInstructionPushSize = 0;
@@ -278,12 +278,13 @@ private:
   llvm::Type *PtrSizedInteger = nullptr;
   llvm::Type *OpaquePointerType = nullptr;
   OpaqueFunctionsPool<TypePair> AddressOfPool;
-  OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
+  LocalVariableHelper VariableHelper;
 
 public:
   SegregateStackAccesses(const model::Binary &Binary,
                          Module &M,
-                         GlobalValue *StackPointer) :
+                         GlobalValue *StackPointer,
+                         bool LegacyLocalVariables) :
     Binary(Binary),
     M(M),
     SSACS(M.getFunction("stack_size_at_call_site")),
@@ -294,7 +295,12 @@ public:
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
     AddressOfPool(makeAddressOfPool(M)),
-    LocalVarPool(makeLocalVarPool(M)) {
+    VariableHelper(LegacyLocalVariables ?
+                     LocalVariableHelper::makeLegacy(Binary,
+                                                     M,
+                                                     StackPointer,
+                                                     AddressOfPool) :
+                     LocalVariableHelper::make(Binary, M)) {
 
     revng_assert(SSACS != nullptr);
 
@@ -362,28 +368,6 @@ public:
       eraseFromParent(OldFunction);
 
     return true;
-  }
-
-private:
-  Instruction *createLocal(IRBuilder<> &B, const model::Type &VariableType) {
-    // Get call to local variable
-    auto *LocalVarFunctionType = getLocalVarType(PtrSizedInteger);
-    auto *LocalVarFunction = LocalVarPool.get(PtrSizedInteger,
-                                              LocalVarFunctionType,
-                                              "LocalVariable");
-
-    // Allocate variable for return value
-    Constant *ReferenceString = serializeToLLVMString(VariableType, M);
-    Instruction *Reference = B.CreateCall(LocalVarFunction,
-                                          { ReferenceString });
-
-    // Take the address
-    auto *T = Reference->getType();
-    auto *AddressOfFunctionType = getAddressOfType(T, T);
-    auto *AddressOfFunction = AddressOfPool.get({ T, T },
-                                                AddressOfFunctionType,
-                                                "AddressOf");
-    return B.CreateCall(AddressOfFunction, { ReferenceString, Reference });
   }
 
   Value *pointer(IRBuilder<> &B, Value *V) const {
@@ -488,8 +472,6 @@ private:
       //
       // Update references to old arguments
       //
-      IRBuilder<> B(&NewFunction->getEntryBlock());
-      setInsertPointToFirstNonAlloca(B, *NewFunction);
 
       // Create StackAccessRedirector, if required
       StackAccessRedirector *Redirector = nullptr;
@@ -533,7 +515,11 @@ private:
 
       Value *ReturnValuePointer = nullptr;
       if (ReturnMethod == ReturnMethod::ModelAggregate) {
-        ReturnValuePointer = createLocal(B, Layout.returnValueAggregateType());
+        const model::Type &ReturnAggregateType = Layout
+                                                   .returnValueAggregateType();
+        VariableHelper.setTargetFunction(NewFunction);
+        ReturnValuePointer = VariableHelper
+                               .createLocalVariable(ReturnAggregateType);
         revng_assert(ReturnValuePointer);
 
         if (Layout.hasSPTAR()) {
@@ -557,6 +543,9 @@ private:
           ModelArguments = llvm::drop_begin(ModelArguments);
         }
       }
+
+      IRBuilder<> B(&NewFunction->getEntryBlock());
+      setInsertPointToFirstNonAlloca(B, *NewFunction);
 
       // Handle arguments
       for (auto [ModelArgument, NewArgument] :
@@ -725,13 +714,15 @@ private:
           }
 
           // Return the pointer to the result variable
-          revng_assert(ReturnValuePointer
-                       and isCallToTagged(ReturnValuePointer,
-                                          FunctionTags::AddressOf));
-          auto *LocalVarDecl = getCallToTagged(ReturnValuePointer,
-                                               FunctionTags::AddressOf);
-          auto *ReturnValueReference = LocalVarDecl->getArgOperand(1);
-          B.CreateRet(ReturnValueReference);
+          revng_assert(ReturnValuePointer);
+          if (VariableHelper.isLegacy()) {
+            auto *LocalVarDecl = getCallToTagged(ReturnValuePointer,
+                                                 FunctionTags::AddressOf);
+            B.CreateRet(LocalVarDecl->getArgOperand(1));
+          } else {
+            B.CreateRet(B.CreatePtrToInt(ReturnValuePointer, PtrSizedInteger));
+          }
+
           Ret->eraseFromParent();
         }
       } break;
@@ -1512,7 +1503,7 @@ bool SegregateStackAccessesPass::runOnModule(Module &M) {
   // Get the stack pointer type
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
 
-  SegregateStackAccesses SSA(Binary, M, GCBI.spReg());
+  SegregateStackAccesses SSA(Binary, M, GCBI.spReg(), LegacyLocalVariables);
   return SSA.run();
 }
 
@@ -1541,7 +1532,8 @@ struct SegregateStackAccessesPipe {
   }
 
   void registerPasses(legacy::PassManager &Manager) {
-    Manager.add(new SegregateStackAccessesPass(/* IsLegacy = */ false));
+    Manager
+      .add(new SegregateStackAccessesPass(/* LegacyLocalVariables = */ false));
   }
 };
 
@@ -1559,7 +1551,8 @@ struct LegacySegregateStackAccessesPipe {
   }
 
   void registerPasses(legacy::PassManager &Manager) {
-    Manager.add(new SegregateStackAccessesPass(/* IsLegacy = */ true));
+    Manager
+      .add(new SegregateStackAccessesPass(/* LegacyLocalVariables = */ true));
   }
 };
 
