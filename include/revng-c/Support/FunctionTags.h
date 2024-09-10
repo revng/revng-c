@@ -80,9 +80,9 @@ struct TypePair {
 /// we want to transform into a pointer).
 llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
 
-/// Initializes a pool of AddressOf functions, initializing it its internal
-/// Module
-void initAddressOfPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
+/// Creates a pool of AddressOf functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<TypePair> makeAddressOfPool(llvm::Module &M);
 
 struct StringLiteralPoolKey {
   MetaAddress Address;
@@ -94,33 +94,42 @@ struct StringLiteralPoolKey {
   operator<=>(const StringLiteralPoolKey &) const = default;
 };
 
-/// Initializes a pool of StringLiteral functions.
-void initStringLiteralPool(OpaqueFunctionsPool<StringLiteralPoolKey> &Pool,
-                           llvm::Module *M);
+/// Creates a pool of StringLiteral functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<StringLiteralPoolKey>
+makeStringLiteralPool(llvm::Module &M);
 
-/// Initializes a pool of Parentheses functions
-void initParenthesesPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of Parentheses functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeParenthesesPool(llvm::Module &M);
 
-/// Initializes a pool of hex literals printing functions
-void initHexPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of HexInteger functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeHexPrintPool(llvm::Module &M);
 
-/// Initializes a pool of char literals printing functions
-void initCharPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of CharInteger functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeCharPrintPool(llvm::Module &M);
 
-/// Initializes a pool of bool literals printing functions
-void initBoolPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of BoolInteger functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeBoolPrintPool(llvm::Module &M);
 
-/// Initializes a pool of NULL pointer literals printing functions
-void initNullPtrPrintPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of NullPtr functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeNullPtrPrintPool(llvm::Module &M);
 
-/// Initializes a pool of unary_minus functions
-void initUnaryMinusPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of UnaryMinus functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeUnaryMinusPool(llvm::Module &M);
 
-/// Initializes a pool of binary_not functions
-void initBinaryNotPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of BinaryNot functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeBinaryNotPool(llvm::Module &M);
 
-/// Initializes a pool of boolean_not functions
-void initBooleanNotPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of BooleanNot functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeBooleanNotPool(llvm::Module &M);
 
 /// ModelGEP functions are used to replace pointer arithmetic with a navigation
 /// of the Model.
@@ -138,14 +147,15 @@ getModelGEPRef(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
 
 using ModelCastPoolKey = std::pair<llvm::Type *, llvm::Type *>;
 
-/// Initializes a pool of ModelCast functions
-void initModelCastPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
+/// Creates a pool of ModelCast functions, initializing its internal
+/// state from the Module \a M
+OpaqueFunctionsPool<TypePair> makeModelCastPool(llvm::Module &M);
 
 using SegmentRefPoolKey = std::tuple<MetaAddress, uint64_t, llvm::Type *>;
 
-/// Initializes a pool of SegmentRef functions
-void initSegmentRefPool(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
-                        llvm::Module *M);
+/// Creates a pool of SegmentRef functions, initializing its internal
+/// state from the Module \a M
+OpaqueFunctionsPool<SegmentRefPoolKey> makeSegmentRefPool(llvm::Module &M);
 
 /// Derive the function type of the corresponding OpaqueExtractValue() function
 /// from an ExtractValue instruction. OpaqueExtractValues wrap an
@@ -153,31 +163,31 @@ void initSegmentRefPool(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
 /// arguments are the same as the instruction being wrapped.
 llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract);
 
-// Initializes a pool of OpaqueExtractValue instructions, so that a new one can
-// be created on-demand.
-void initOpaqueEVPool(OpaqueFunctionsPool<TypePair> &Pool, llvm::Module *M);
+/// Creates a pool of OpaqueExtractValue functions, initializing its internal
+/// state from the Module \a M
+OpaqueFunctionsPool<TypePair> makeOpaqueEVPool(llvm::Module &M);
 
 /// LocalVariable is used to indicate the allocation of a local variable. It
 /// returns a reference to the allocated variable.
 llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType);
 
-/// Initializes a pool of LocalVariable functions, initializing it its internal
-/// Module.
-void initLocalVarPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of LocalVariable functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeLocalVarPool(llvm::Module &M);
 
 /// Assign() are meant to replace `store` instructions in which the pointer
 /// operand is a reference.
 llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
                                           llvm::Type *PtrType);
 
-/// Initializes a pool of Assign functions, initializing it its internal
-/// Module.
-void initAssignPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of Assign functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeAssignPool(llvm::Module &M);
 
 /// Copy() are meant to replace `load` instructions in which the pointer
 /// operand is a reference.
 llvm::FunctionType *getCopyType(llvm::Type *ReturnedType);
 
-/// Initializes a pool of Copy functions, initializing it its internal
-/// Module.
-void initCopyPool(OpaqueFunctionsPool<llvm::Type *> &Pool);
+/// Creates a pool of Copy functions, initializing its internal state
+/// from the Module \a M
+OpaqueFunctionsPool<llvm::Type *> makeCopyPool(llvm::Module &M);

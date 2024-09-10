@@ -293,13 +293,10 @@ public:
     StackPointerType(StackPointer->getValueType()),
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
-    AddressOfPool(&M, false),
-    LocalVarPool(&M, false) {
+    AddressOfPool(makeAddressOfPool(M)),
+    LocalVarPool(makeLocalVarPool(M)) {
 
     revng_assert(SSACS != nullptr);
-
-    initAddressOfPool(AddressOfPool, &M);
-    initLocalVarPool(LocalVarPool);
 
     // After segregate, we should not introduce new calls to
     // `_init_local_sp`: enable to DCE it away

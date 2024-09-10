@@ -530,8 +530,8 @@ bool OPRP::needsParentheses(Instruction *I, Use &U) {
 }
 
 bool OPRP::runOnFunction(Function &F) {
-  OpaqueFunctionsPool<Type *> ParenthesesPool(F.getParent(), false);
-  initParenthesesPool(ParenthesesPool);
+  OpaqueFunctionsPool<Type *>
+    ParenthesesPool = makeParenthesesPool(*F.getParent());
 
   std::vector<std::pair<Instruction *, Use *>> InstructionsToBeParenthesized;
   for (BasicBlock &BB : F)

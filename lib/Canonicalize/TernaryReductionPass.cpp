@@ -36,10 +36,7 @@ class TernaryReductionImpl {
 
 public:
   TernaryReductionImpl(llvm::Module &Module) :
-    Builder(Module.getContext()), BooleanNotPool(&Module, false) {
-
-    initBooleanNotPool(BooleanNotPool);
-  }
+    Builder(Module.getContext()), BooleanNotPool(makeBooleanNotPool(Module)) {}
 
   llvm::Value *reduce(llvm::SelectInst &Select) {
     std::optional TrueBranch = unwrapBoolConstant(Select.getTrueValue());

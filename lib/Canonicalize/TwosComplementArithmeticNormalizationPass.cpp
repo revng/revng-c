@@ -39,9 +39,7 @@ class UnaryMinusBuilder {
 
 public:
   UnaryMinusBuilder(llvm::Function &F) :
-    Pool(F.getParent(), false), Builder(F.getContext()) {
-    initUnaryMinusPool(Pool);
-  }
+    Pool(makeUnaryMinusPool(*F.getParent())), Builder(F.getContext()) {}
 
   void SetInsertPoint(llvm::Instruction *I) { Builder.SetInsertPoint(I); }
 
@@ -61,9 +59,7 @@ class BinaryNotBuilder {
 
 public:
   BinaryNotBuilder(llvm::Function &F) :
-    Pool(F.getParent(), false), Builder(F.getContext()) {
-    initBinaryNotPool(Pool);
-  }
+    Pool(makeBinaryNotPool(*F.getParent())), Builder(F.getContext()) {}
 
   void SetInsertPoint(llvm::Instruction *I) { Builder.SetInsertPoint(I); }
 
@@ -81,9 +77,7 @@ class BooleanNotBuilder {
 
 public:
   BooleanNotBuilder(llvm::Function &F) :
-    Pool(F.getParent(), false), Builder(F.getContext()) {
-    initBooleanNotPool(Pool);
-  }
+    Pool(makeBooleanNotPool(*F.getParent())), Builder(F.getContext()) {}
 
   void SetInsertPoint(llvm::Instruction *I) { Builder.SetInsertPoint(I); }
 

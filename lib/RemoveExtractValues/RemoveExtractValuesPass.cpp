@@ -40,9 +40,7 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
 
   // Create a pool of functions with the same behavior: we will need a different
   // function for each different struct
-  OpaqueFunctionsPool<TypePair> OpaqueEVPool(F.getParent(),
-                                             /* PurgeOnDestruction */ false);
-  initOpaqueEVPool(OpaqueEVPool, F.getParent());
+  OpaqueFunctionsPool<TypePair> OpaqueEVPool = makeOpaqueEVPool(*F.getParent());
 
   llvm::LLVMContext &LLVMCtx = F.getContext();
   IRBuilder<> Builder(LLVMCtx);

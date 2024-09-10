@@ -63,10 +63,8 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
   llvm::Type *PtrSizedInteger = getPointerSizedInteger(LLVMCtx, *Model);
 
   // Initialize function pools
-  OpaqueFunctionsPool<TypePair> AddressOfPool(&M, false);
-  initAddressOfPool(AddressOfPool, &M);
-  OpaqueFunctionsPool<llvm::Type *> LocalVarPool(&M, false);
-  initLocalVarPool(LocalVarPool);
+  OpaqueFunctionsPool<TypePair> AddressOfPool = makeAddressOfPool(M);
+  OpaqueFunctionsPool<llvm::Type *> LocalVarPool = makeLocalVarPool(M);
 
   // Try to initialize a map for the known model types of llvm::Values
   // that are reachable from F. If this fails, we just bail out because we

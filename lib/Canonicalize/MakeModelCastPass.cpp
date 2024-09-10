@@ -191,8 +191,7 @@ bool MMCP::runOnFunction(Function &F) {
   bool Changed = false;
 
   Module *M = F.getParent();
-  OpaqueFunctionsPool<TypePair> ModelCastPool(M, false);
-  initModelCastPool(ModelCastPool, M);
+  OpaqueFunctionsPool<TypePair> ModelCastPool = makeModelCastPool(*M);
 
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();

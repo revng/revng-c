@@ -852,14 +852,9 @@ public:
     TheTypeMap(std::move(TMap)),
     F(TheF),
     Builder(TheF.getContext()),
-    LocalVarPool(TheF.getParent(), false),
-    AssignPool(TheF.getParent(), false),
-    CopyPool(TheF.getParent(), false) {
-
-    initLocalVarPool(LocalVarPool);
-    initAssignPool(AssignPool);
-    initCopyPool(CopyPool);
-  }
+    LocalVarPool(makeLocalVarPool(*TheF.getParent())),
+    AssignPool(makeAssignPool(*TheF.getParent())),
+    CopyPool(makeCopyPool(*TheF.getParent())) {}
 
 public:
   bool run(const PickedInstructions &Picked) {
