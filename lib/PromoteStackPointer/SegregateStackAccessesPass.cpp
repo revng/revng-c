@@ -263,7 +263,6 @@ private:
   Module &M;
   Function *SSACS = nullptr;
   Function *InitLocalSP = nullptr;
-  Function *StackFrameAllocator = nullptr;
   Function *CallStackArgumentsAllocator = nullptr;
   std::set<Instruction *> ToPurge;
   IRBuilder<> SABuilder;
@@ -327,10 +326,6 @@ public:
       return Result;
     };
 
-    StackFrameAllocator = Create("revng_stack_frame",
-                                 FunctionType::get(StackPointerType,
-                                                   { StackPointerType },
-                                                   false));
     llvm::Type *StringPtrType = getStringPtrType(M.getContext());
 
     // TODO: revng_call_stack_arguments can decay into a LocalVariable
@@ -1336,8 +1331,8 @@ public:
     //
     // Find call to _init_local_sp
     //
-    CallInst *Call = findCallTo(&F, InitLocalSP);
-    if (Call == nullptr or ModelFunction.StackFrameType().isEmpty())
+    CallInst *InitLocalSPCall = findCallTo(&F, InitLocalSP);
+    if (InitLocalSPCall == nullptr or ModelFunction.StackFrameType().isEmpty())
       return;
 
     //
@@ -1351,18 +1346,16 @@ public:
     // Create call and rebase SP0, if StackFrameSize is not zero
     //
     if (StackFrameSize != 0) {
-      IRBuilder<> Builder(Call);
-      model::UpcastableType StackFrameType = ModelFunction.StackFrameType();
-      auto [_, StackFrameCall] = createCallWithAddressOf(Builder,
-                                                         StackFrameType,
-                                                         StackFrameAllocator,
-                                                         StackFrameSize);
-      auto *SP0 = Builder.CreateAdd(StackFrameCall,
-                                    getSPConstant(StackFrameSize));
-      Call->replaceAllUsesWith(SP0);
+      VariableHelper.setTargetFunction(&F);
+      Instruction *StackFrameAddress = VariableHelper
+                                         .createStackFrameVariable();
+
+      IRBuilder<> B(InitLocalSPCall);
+      auto *SP0 = B.CreateAdd(StackFrameAddress, getSPConstant(StackFrameSize));
+      InitLocalSPCall->replaceAllUsesWith(SP0);
 
       // Cleanup _init_local_sp
-      eraseFromParent(Call);
+      eraseFromParent(InitLocalSPCall);
     }
   }
 
