@@ -369,6 +369,19 @@ public:
     return B.CreateIntToPtr(V, OpaquePointerType);
   }
 
+  CallInst *createAddressOf(IRBuilder<> &B,
+                            llvm::Value *V,
+                            const model::UpcastableType &AllocatedType) {
+    auto *ArgType = V->getType();
+    // Inject a call to AddressOf
+    llvm::Constant *ModelTypeString = serializeToLLVMString(AllocatedType, M);
+    auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger, ArgType);
+    auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger, ArgType },
+                                                AddressOfFunctionType,
+                                                "AddressOf");
+    return B.CreateCall(AddressOfFunction, { ModelTypeString, V });
+  }
+
   template<typename... Types>
   std::pair<CallInst *, CallInst *>
   createCallWithAddressOf(IRBuilder<> &B,
@@ -397,16 +410,7 @@ public:
     (AddArgument(Arguments), ...);
 
     auto *Call = B.CreateCall(Callee, ArgumentsValues);
-    auto CallType = Call->getType();
-
-    // Inject a call to AddressOf
-    llvm::Constant *ModelTypeString = serializeToLLVMString(AllocatedType, M);
-    auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger, CallType);
-    auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger, CallType },
-                                                AddressOfFunctionType,
-                                                "AddressOf");
-    auto *AddressofCall = B.CreateCall(AddressOfFunction,
-                                       { ModelTypeString, Call });
+    auto *AddressofCall = createAddressOf(B, Call, AllocatedType);
     return { Call, AddressofCall };
   }
 
@@ -559,18 +563,9 @@ public:
           auto Architecture = Binary.Architecture();
           auto PointerSize = model::Architecture::getPointerSize(Architecture);
           revng_assert(ModelArgument.Type->size() > PointerSize);
-
-          llvm::Constant
-            *ModelTypeString = serializeToLLVMString(ModelArgument.Type, M);
-          auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger,
-                                                         NewArgumentType);
-          auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger,
-                                                        NewArgumentType },
-                                                      AddressOfFunctionType,
-                                                      "AddressOf");
-          auto *AddressOfNewArgument = B.CreateCall(AddressOfFunction,
-                                                    { ModelTypeString,
-                                                      &NewArgument });
+          auto *AddressOfNewArgument = createAddressOf(B,
+                                                       &NewArgument,
+                                                       ModelArgument.Type);
 
           if (UsesStack) {
             // When loading from this stack slot, return the address of the
@@ -625,17 +620,9 @@ public:
         } else if (ModelArgument.Kind == ReferenceToAggregate) {
 
           // Handle non-scalar argument (passed by pointer)
-          llvm::Constant
-            *ModelTypeString = serializeToLLVMString(ModelArgument.Type, M);
-          auto *AddressOfFunctionType = getAddressOfType(PtrSizedInteger,
-                                                         NewArgumentType);
-          auto *AddressOfFunction = AddressOfPool.get({ PtrSizedInteger,
-                                                        NewArgumentType },
-                                                      AddressOfFunctionType,
-                                                      "AddressOf");
-          auto *AddressOfNewArgument = B.CreateCall(AddressOfFunction,
-                                                    { ModelTypeString,
-                                                      &NewArgument });
+          auto *AddressOfNewArgument = createAddressOf(B,
+                                                       &NewArgument,
+                                                       ModelArgument.Type);
 
           for (model::Register::Values Register : ModelArgument.Registers) {
             Argument *OldArgument = ArgumentToRegister.at(Register);
@@ -1142,15 +1129,9 @@ public:
                        Zero });
       } else {
         revng_assert(not ReturnValuePointer);
-        auto *T = NewCall->getType();
-        auto *AddressOfFunctionType = getAddressOfType(T, T);
-        auto *AddressOfFunction = AddressOfPool.get({ T, T },
-                                                    AddressOfFunctionType,
-                                                    "AddressOf");
-        const auto &ReturnValue = Layout.returnValueAggregateType();
-        Constant *ReferenceString = serializeToLLVMString(ReturnValue, M);
-        ReturnValuePointer = B.CreateCall(AddressOfFunction,
-                                          { ReferenceString, NewCall });
+        ReturnValuePointer = createAddressOf(B,
+                                             NewCall,
+                                             Layout.returnValueAggregateType());
       }
 
       if (HasSPTAR) {
