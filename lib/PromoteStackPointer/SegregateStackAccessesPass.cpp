@@ -1033,27 +1033,46 @@ public:
 
       case ArgumentKind::ReferenceToAggregate: {
         // Allocate memory for stack arguments
-        llvm::Constant *ArgumentType = serializeToLLVMString(ModelArgument.Type,
-                                                             M);
-        auto [StackArgsCall,
-              AddrOfCall] = createCallWithAddressOf(SABuilder,
-                                                    ModelArgument.Type,
-                                                    CallStackArgumentsAllocator,
-                                                    ArgumentType,
-                                                    NewSize);
-        StackArgsCall->copyMetadata(*SSACSCall);
+        VariableHelper.setTargetFunction(SSACSCall->getFunction());
+        Instruction
+          *StackArgsAddress = VariableHelper
+                                .createCallStackArgumentVariable(*ModelArgument
+                                                                    .Type);
+        Instruction *StackArgsAllocation = nullptr;
+        if (VariableHelper.isLegacy()) {
+          // When in legacy mode, the actual instruction performing the stack
+          // allocation is the first operand of StackArgsAddress, which is
+          // guaranteed to be a call to AddressOf.
+          auto *LocalVarDecl = getCallToTagged(StackArgsAddress,
+                                               FunctionTags::AddressOf);
+          auto *AllocationInst = LocalVarDecl->getArgOperand(1);
+          StackArgsAllocation = cast<Instruction>(AllocationInst);
 
-        // Record for pushing ALAP. AddrOfCall should be pushed ALAP first to
-        // leave slack to StackArgsCall
-        ToPushALAP.push_back(AddrOfCall);
-        ToPushALAP.push_back(StackArgsCall);
+          // Then we have to push the address computation and the allocation
+          // ALAP. The address should be pushed ALAP first to leave slack for
+          // the allocation instruction to also be pushed ALAP afterwards.
+          ToPushALAP.push_back(StackArgsAddress);
+          ToPushALAP.push_back(StackArgsAllocation);
+        } else {
+          // When not in legacy mode, the instruction returning the address of
+          // the stack arguments is also the instruction performing the actual
+          // allocation, so we can just say they're equal.
+          //
+          // Also, there's no need to push it ALAP, since it's an alloca.
+          revng_assert(isa<AllocaInst>(StackArgsAddress));
+          StackArgsAllocation = StackArgsAddress;
+        }
+
+        // We also have to copy over metadata, from the annotation about the
+        // size of the stack arguments.
+        StackArgsAllocation->copyMetadata(*SSACSCall);
 
         unsigned OffsetInNewArgument = 0;
         for (auto &Register : ModelArgument.Registers) {
           Value *OldArgument = ArgumentToRegister.at(Register);
           unsigned OldSize = model::Register::getSize(Register);
 
-          Value *Address = createAdd(B, AddrOfCall, OffsetInNewArgument);
+          Value *Address = createAdd(B, StackArgsAddress, OffsetInNewArgument);
 
           // Store value
           Value *Pointer = pointer(B, Address);
@@ -1064,9 +1083,9 @@ public:
         }
 
         if (ModelArgument.Stack)
-          Redirector.recordSpan(*ModelArgument.Stack, AddrOfCall);
+          Redirector.recordSpan(*ModelArgument.Stack, StackArgsAddress);
 
-        Arguments.push_back(StackArgsCall);
+        Arguments.push_back(StackArgsAllocation);
       } break;
 
       default:

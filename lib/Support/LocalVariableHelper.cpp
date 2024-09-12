@@ -144,7 +144,7 @@ LVH::createCallStackArgumentVariable(const model::Type &VariableType) {
   IRBuilder<> B(F->getContext());
   setInsertPointToFirstNonAlloca(B, *F);
 
-  Instruction *Reference = B.CreateCall(StackFrameAllocator,
+  Instruction *Reference = B.CreateCall(CallStackArgumentsAllocator,
                                         { VarTypeString,
                                           ConstantInt::get(SPIntType,
                                                            VariableSize) });
