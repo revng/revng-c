@@ -382,6 +382,16 @@ public:
     return B.CreateCall(AddressOfFunction, { ModelTypeString, V });
   }
 
+  /// Creates an alloca in \a F with type \a T.
+  /// Allocas created with this method are intended to be inserted temporarily,
+  /// and subsequently optimized away from LLVM optimizations.
+  /// There's no need to tag them with model::Types in any way.
+  AllocaInst *createAlloca(Function *F, Type *T) const {
+    IRBuilder<> B(M.getContext());
+    B.SetInsertPointPastAllocas(F);
+    return B.CreateAlloca(T);
+  }
+
   void upgradeDynamicFunctions() {
     SmallVector<Function *, 8> Functions;
     for (Function &F : FunctionTags::DynamicFunction.functions(&M))
@@ -576,11 +586,7 @@ public:
           }
 
           if (ModelArgument.Stack) {
-            auto *Alloca = new AllocaInst(NewArgument.getType(),
-                                          0,
-                                          "",
-                                          &*NewFunction->getEntryBlock()
-                                              .begin());
+            auto *Alloca = createAlloca(NewFunction, NewArgument.getType());
             B.CreateStore(&NewArgument, Alloca);
             ToRecordSpan = B.CreatePtrToInt(Alloca, StackPointerType);
           }
@@ -901,11 +907,9 @@ public:
           revng_assert(MaybeStackSize);
 
           // Create an alloca
-          auto *Alloca = new AllocaInst(B.getIntNTy(ModelArgument.Stack->Size
-                                                    * 8),
-                                        0,
-                                        "",
-                                        &*Caller->getEntryBlock().begin());
+          auto *Alloca = createAlloca(Caller,
+                                      B.getIntNTy(ModelArgument.Stack->Size
+                                                  * 8));
 
           // Record its portion of the stack for redirection
           Redirector.recordSpan(*ModelArgument.Stack,
@@ -967,11 +971,9 @@ public:
           revng_assert(MaybeStackSize);
 
           // Create an alloca
-          auto *Alloca = new AllocaInst(B.getIntNTy(ModelArgument.Stack->Size
-                                                    * 8),
-                                        0,
-                                        "",
-                                        &*Caller->getEntryBlock().begin());
+          auto *Alloca = createAlloca(Caller,
+                                      B.getIntNTy(ModelArgument.Stack->Size
+                                                  * 8));
 
           // Record its portion of the stack for redirection
           Redirector.recordSpan(*ModelArgument.Stack,
