@@ -382,38 +382,6 @@ public:
     return B.CreateCall(AddressOfFunction, { ModelTypeString, V });
   }
 
-  template<typename... Types>
-  std::pair<CallInst *, CallInst *>
-  createCallWithAddressOf(IRBuilder<> &B,
-                          const model::UpcastableType &AllocatedType,
-                          FunctionCallee Callee,
-                          Types... Arguments) {
-
-    SmallVector<Value *> ArgumentsValues;
-    FunctionType *CalleeType = Callee.getFunctionType();
-
-    unsigned Index = 0;
-    auto AddArgument = [&](auto Argument) {
-      using ArgumentType = decltype(Argument);
-      Value *ArgumentValue = nullptr;
-      if constexpr (std::is_same_v<ArgumentType, uint64_t>) {
-        auto *ArgumentType = cast<IntegerType>(CalleeType->getParamType(Index));
-        ArgumentValue = ConstantInt::get(ArgumentType, Argument);
-      } else {
-        ArgumentValue = Argument;
-      }
-
-      ArgumentsValues.push_back(ArgumentValue);
-      ++Index;
-    };
-
-    (AddArgument(Arguments), ...);
-
-    auto *Call = B.CreateCall(Callee, ArgumentsValues);
-    auto *AddressofCall = createAddressOf(B, Call, AllocatedType);
-    return { Call, AddressofCall };
-  }
-
   void upgradeDynamicFunctions() {
     SmallVector<Function *, 8> Functions;
     for (Function &F : FunctionTags::DynamicFunction.functions(&M))
