@@ -15,6 +15,8 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
 
+#include "revng/Model/Binary.h"
+#include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
@@ -109,6 +111,22 @@ extractSegmentKeyFromMetadata(const llvm::Function &F);
 
 /// Returns true if \F has an attached metadata representing a segment key.
 extern bool hasSegmentKeyMetadata(const llvm::Function &F);
+
+extern void setStackTypeMetadata(llvm::Instruction *I,
+                                 const model::Type &StackType);
+
+extern bool hasStackTypeMetadata(const llvm::Instruction *I);
+
+extern model::UpcastableType
+getStackTypeFromMetadata(llvm::Instruction *I, const model::Binary &Model);
+
+extern void setVariableTypeMetadata(llvm::Instruction *I,
+                                    const model::Type &VariableType);
+
+extern bool hasVariableTypeMetadata(const llvm::Instruction *I);
+
+extern model::UpcastableType
+getVariableTypeFromMetadata(llvm::Instruction *I, const model::Binary &Model);
 
 extern void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
                                      MetaAddress StartAddress,

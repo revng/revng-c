@@ -63,17 +63,11 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
   const model::Binary
     &Model = *getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel();
 
-  OpaqueFunctionsPool<llvm::Type *> HexIntegerPool(F.getParent(), false);
-  initHexPrintPool(HexIntegerPool);
-
-  OpaqueFunctionsPool<llvm::Type *> CharIntegerPool(F.getParent(), false);
-  initCharPrintPool(CharIntegerPool);
-
-  OpaqueFunctionsPool<llvm::Type *> BoolIntegerPool(F.getParent(), false);
-  initBoolPrintPool(BoolIntegerPool);
-
-  OpaqueFunctionsPool<llvm::Type *> NullPtrPool(F.getParent(), false);
-  initNullPtrPrintPool(NullPtrPool);
+  llvm::Module &M = *F.getParent();
+  OpaqueFunctionsPool<llvm::Type *> HexIntegerPool = makeHexPrintPool(M);
+  OpaqueFunctionsPool<llvm::Type *> CharIntegerPool = makeCharPrintPool(M);
+  OpaqueFunctionsPool<llvm::Type *> BoolIntegerPool = makeBoolPrintPool(M);
+  OpaqueFunctionsPool<llvm::Type *> NullPtrPool = makeNullPtrPrintPool(M);
 
   std::vector<FormatInt> IntsToBeFormatted;
 

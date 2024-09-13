@@ -2095,185 +2095,185 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   IRBuilder<> Builder(Ctxt);
   ModelGEPArgCache TypeArgCache;
 
-  // Create a function pool for AddressOf calls
-  OpaqueFunctionsPool<TypePair> AddressOfPool(&M,
-                                              /* PurgeOnDestruction */ false);
-  if (not GEPReplacements.empty())
-    initAddressOfPool(AddressOfPool, &M);
-
   llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Ctxt, *Model);
 
   std::map<std::pair<Instruction *, Value *>, Value *> PhiIncomingsMaps;
 
-  for (auto &[TheUseToGEPify, BaseAddress, GEPArgs] : GEPReplacements) {
+  if (not GEPReplacements.empty()) {
+    OpaqueFunctionsPool<TypePair> AddressOfPool = makeAddressOfPool(M);
+    for (auto &[TheUseToGEPify, BaseAddress, GEPArgs] : GEPReplacements) {
 
-    const auto &[BaseType, IndexVector, Mismatched, AccessedType] = GEPArgs;
-    const auto &[MismatchedOffset, MismatchedIndices] = Mismatched;
+      const auto &[BaseType, IndexVector, Mismatched, AccessedType] = GEPArgs;
+      const auto &[MismatchedOffset, MismatchedIndices] = Mismatched;
 
-    // Early exit for avoiding to emit a lot of &* in C.
-    {
-      if (IndexVector.empty())
-        continue;
+      // Early exit for avoiding to emit a lot of &* in C.
+      {
+        if (IndexVector.empty())
+          continue;
 
-      const auto &[Index, AggregateTy] = IndexVector.front();
-      revng_assert(AggregateTy == AggregateKind::Array);
+        const auto &[Index, AggregateTy] = IndexVector.front();
+        revng_assert(AggregateTy == AggregateKind::Array);
 
-      // This is not necessary or wrong strictly speaking, but if we don't bail
-      // out on this case we end up generating a lot of &* in C.
-      if (IndexVector.size() == 1 and Index.isZero())
-        continue;
-    }
-
-    auto *UserInstr = cast<Instruction>(TheUseToGEPify->getUser());
-    auto *V = TheUseToGEPify->get();
-
-    bool IsPhi = isa<PHINode>(UserInstr);
-    if (IsPhi) {
-      auto It = PhiIncomingsMaps.find({ UserInstr, V });
-      if (It != PhiIncomingsMaps.end()) {
-        TheUseToGEPify->set(It->second);
-        revng_log(ModelGEPLog,
-                  "    `-> replaced with: " << dumpToString(It->second));
-        Changed = true;
-        continue;
-      }
-    }
-
-    revng_log(ModelGEPLog, "GEPify use of: " << dumpToString(V));
-    revng_log(ModelGEPLog, "  `-> use in: " << dumpToString(UserInstr));
-
-    llvm::Type *UseType = TheUseToGEPify->get()->getType();
-    llvm::Type *BaseAddrType = BaseAddress->getType();
-
-    auto *ModelGEPFunction = getModelGEP(M, PtrSizedInteger, BaseAddrType);
-
-    // Build the arguments for the call to modelGEP
-    SmallVector<Value *, 4> Args;
-    Args.reserve(GEPArgs.IndexVector.size() + 2);
-
-    // The first argument is always a pointer to a constant global variable
-    // that holds the string representing the yaml serialization of
-    // the base type of the modelGEP
-    Args.push_back(TypeArgCache.get(*BaseType, M));
-
-    // The second argument is the base address
-    Args.push_back(BaseAddress);
-
-    // Set the insert point for building the other arguments
-    if (auto *PHIUser = dyn_cast<PHINode>(UserInstr)) {
-      if (isa<llvm::Argument>(TheUseToGEPify->get())) {
-        // Insert at the beginning of the function
-        Builder.SetInsertPoint(F.getEntryBlock().getFirstNonPHI());
-      } else if (llvm::BasicBlock *Incoming = getUniqueIncoming(V, PHIUser)) {
-        // Insert at the end of the incoming block
-        Builder.SetInsertPoint(Incoming->getTerminator());
-      } else {
-        // Insert at the end of the block of the user
-        auto *IncomingInstruction = cast<Instruction>(TheUseToGEPify->get());
-        auto *Terminator = IncomingInstruction->getParent()->getTerminator();
-        Builder.SetInsertPoint(Terminator);
-      }
-    } else {
-      Builder.SetInsertPoint(UserInstr);
-    }
-
-    // The other arguments are the indices in IndexVector
-    for (auto &Group : llvm::enumerate(GEPArgs.IndexVector)) {
-      const auto &[Index, AggregateTy] = Group.value();
-      const auto &[ConstantIndex, InductionVariables] = Index;
-      revng_assert(AggregateTy == AggregateKind::Array
-                   or InductionVariables.empty());
-
-      Value *IndexValue = nullptr;
-      if (InductionVariables.empty() or not ConstantIndex.isNullValue()) {
-        auto *Int64Type = llvm::IntegerType::get(Ctxt, 64 /*NumBits*/);
-        IndexValue = ConstantInt::get(Int64Type, ConstantIndex);
+        // This is not necessary or wrong strictly speaking, but if we don't
+        // bail out on this case we end up generating a lot of &* in C.
+        if (IndexVector.size() == 1 and Index.isZero())
+          continue;
       }
 
-      for (const auto &[Coefficient, InductionVariable] : InductionVariables) {
-        Value *Addend = InductionVariable;
-        if (not Coefficient->isOne()) {
-          auto *
-            CoefficientConstant = ConstantInt::get(InductionVariable->getType(),
-                                                   Coefficient->getZExtValue());
-          Addend = Builder.CreateMul(CoefficientConstant, InductionVariable);
+      auto *UserInstr = cast<Instruction>(TheUseToGEPify->getUser());
+      auto *V = TheUseToGEPify->get();
+
+      bool IsPhi = isa<PHINode>(UserInstr);
+      if (IsPhi) {
+        auto It = PhiIncomingsMaps.find({ UserInstr, V });
+        if (It != PhiIncomingsMaps.end()) {
+          TheUseToGEPify->set(It->second);
+          revng_log(ModelGEPLog,
+                    "    `-> replaced with: " << dumpToString(It->second));
+          Changed = true;
+          continue;
         }
+      }
 
-        auto AddendBitWidth = Addend->getType()->getIntegerBitWidth();
-        revng_assert(AddendBitWidth);
+      revng_log(ModelGEPLog, "GEPify use of: " << dumpToString(V));
+      revng_log(ModelGEPLog, "  `-> use in: " << dumpToString(UserInstr));
 
-        if (Group.index() == 0 and AddendBitWidth != 64) {
-          auto *Int64Type = llvm::IntegerType::getIntNTy(Addend->getContext(),
-                                                         64);
-          Addend = Builder.CreateZExtOrTrunc(Addend, Int64Type);
-        }
+      llvm::Type *UseType = TheUseToGEPify->get()->getType();
+      llvm::Type *BaseAddrType = BaseAddress->getType();
 
-        if (IndexValue) {
+      auto *ModelGEPFunction = getModelGEP(M, PtrSizedInteger, BaseAddrType);
 
-          if (auto BitWidth = IndexValue->getType()->getIntegerBitWidth();
-              BitWidth > Addend->getType()->getIntegerBitWidth())
-            Addend = Builder.CreateZExt(Addend, IndexValue->getType());
+      // Build the arguments for the call to modelGEP
+      SmallVector<Value *, 4> Args;
+      Args.reserve(GEPArgs.IndexVector.size() + 2);
 
-          IndexValue = Builder.CreateAdd(Addend, IndexValue);
+      // The first argument is always a pointer to a constant global variable
+      // that holds the string representing the yaml serialization of
+      // the base type of the modelGEP
+      Args.push_back(TypeArgCache.get(*BaseType, M));
+
+      // The second argument is the base address
+      Args.push_back(BaseAddress);
+
+      // Set the insert point for building the other arguments
+      if (auto *PHIUser = dyn_cast<PHINode>(UserInstr)) {
+        if (isa<llvm::Argument>(TheUseToGEPify->get())) {
+          // Insert at the beginning of the function
+          Builder.SetInsertPoint(F.getEntryBlock().getFirstNonPHI());
+        } else if (llvm::BasicBlock *Incoming = getUniqueIncoming(V, PHIUser)) {
+          // Insert at the end of the incoming block
+          Builder.SetInsertPoint(Incoming->getTerminator());
         } else {
-          IndexValue = Addend;
+          // Insert at the end of the block of the user
+          auto *IncomingInstruction = cast<Instruction>(TheUseToGEPify->get());
+          auto *Terminator = IncomingInstruction->getParent()->getTerminator();
+          Builder.SetInsertPoint(Terminator);
         }
+      } else {
+        Builder.SetInsertPoint(UserInstr);
       }
 
-      Args.push_back(IndexValue);
+      // The other arguments are the indices in IndexVector
+      for (auto &Group : llvm::enumerate(GEPArgs.IndexVector)) {
+        const auto &[Index, AggregateTy] = Group.value();
+        const auto &[ConstantIndex, InductionVariables] = Index;
+        revng_assert(AggregateTy == AggregateKind::Array
+                     or InductionVariables.empty());
+
+        Value *IndexValue = nullptr;
+        if (InductionVariables.empty() or not ConstantIndex.isNullValue()) {
+          auto *Int64Type = llvm::IntegerType::get(Ctxt, 64 /*NumBits*/);
+          IndexValue = ConstantInt::get(Int64Type, ConstantIndex);
+        }
+
+        for (const auto &[Coefficient, InductionVariable] :
+             InductionVariables) {
+          Value *Addend = InductionVariable;
+          if (not Coefficient->isOne()) {
+            using CI = llvm::ConstantInt;
+            auto *CoefficientConstant = CI::get(InductionVariable->getType(),
+                                                Coefficient->getZExtValue());
+            Addend = Builder.CreateMul(CoefficientConstant, InductionVariable);
+          }
+
+          auto AddendBitWidth = Addend->getType()->getIntegerBitWidth();
+          revng_assert(AddendBitWidth);
+
+          if (Group.index() == 0 and AddendBitWidth != 64) {
+            auto *Int64Type = llvm::IntegerType::getIntNTy(Addend->getContext(),
+                                                           64);
+            Addend = Builder.CreateZExtOrTrunc(Addend, Int64Type);
+          }
+
+          if (IndexValue) {
+
+            if (auto BitWidth = IndexValue->getType()->getIntegerBitWidth();
+                BitWidth > Addend->getType()->getIntegerBitWidth())
+              Addend = Builder.CreateZExt(Addend, IndexValue->getType());
+
+            IndexValue = Builder.CreateAdd(Addend, IndexValue);
+          } else {
+            IndexValue = Addend;
+          }
+        }
+
+        Args.push_back(IndexValue);
+      }
+
+      Value *ModelGEPRef = Builder.CreateCall(ModelGEPFunction, Args);
+
+      // If there is a remaining offset, we are returning something more
+      // similar to a pointer than the actual value
+      auto AddrOfReturnedType = Mismatched.isZero() ? UseType : PtrSizedInteger;
+
+      // Inject a call to AddressOf
+      auto *AddressOfFunctionType = getAddressOfType(AddrOfReturnedType,
+                                                     PtrSizedInteger);
+      auto *AddressOfFunction = AddressOfPool.get({ AddrOfReturnedType,
+                                                    PtrSizedInteger },
+                                                  AddressOfFunctionType,
+                                                  "AddressOf");
+      auto *Cached = TypeArgCache.get(*AccessedType, M);
+      Value *ModelGEPPtr = Builder.CreateCall(AddressOfFunction,
+                                              { Cached, ModelGEPRef });
+
+      if (not Mismatched.isZero()) {
+        // If the GEPArgs have a RestOff that is strictly positive, we have to
+        // inject the remaining part of the pointer arithmetic as normal sums
+        auto GEPResultBitWidth = ModelGEPPtr->getType()->getIntegerBitWidth();
+        APInt OffsetToAdd = MismatchedOffset.zextOrTrunc(GEPResultBitWidth);
+        if (not OffsetToAdd.isNullValue())
+          ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
+                                          ConstantInt::get(Ctxt, OffsetToAdd));
+        for (const auto &[Coefficient, Index] : MismatchedIndices) {
+          ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
+                                          Builder.CreateMul(Index,
+                                                            Coefficient));
+        }
+
+        if (UseType->isPointerTy()) {
+          // Convert the `AddressOf` result to a pointer in the IR if needed
+          ModelGEPPtr = Builder.CreateIntToPtr(ModelGEPPtr, UseType);
+        } else if (UseType != ModelGEPPtr->getType()
+                   and UseType->isIntegerTy()) {
+          ModelGEPPtr = Builder.CreateZExt(ModelGEPPtr, UseType);
+        }
+
+        revng_assert(UseType == ModelGEPPtr->getType());
+      }
+
+      // Finally, replace the use to gepify with the call to the address of
+      // modelGEP, plus the potential arithmetic we've just build.
+      TheUseToGEPify->set(ModelGEPPtr);
+
+      revng_log(ModelGEPLog,
+                "    `-> replaced with: " << dumpToString(ModelGEPPtr));
+
+      if (IsPhi)
+        PhiIncomingsMaps[{ UserInstr, V }] = ModelGEPPtr;
+
+      Changed = true;
     }
-
-    Value *ModelGEPRef = Builder.CreateCall(ModelGEPFunction, Args);
-
-    // If there is a remaining offset, we are returning something more
-    // similar to a pointer than the actual value
-    auto AddrOfReturnedType = Mismatched.isZero() ? UseType : PtrSizedInteger;
-
-    // Inject a call to AddressOf
-    auto *AddressOfFunctionType = getAddressOfType(AddrOfReturnedType,
-                                                   PtrSizedInteger);
-    auto *AddressOfFunction = AddressOfPool.get({ AddrOfReturnedType,
-                                                  PtrSizedInteger },
-                                                AddressOfFunctionType,
-                                                "AddressOf");
-    auto *Cached = TypeArgCache.get(*AccessedType, M);
-    Value *ModelGEPPtr = Builder.CreateCall(AddressOfFunction,
-                                            { Cached, ModelGEPRef });
-
-    if (not Mismatched.isZero()) {
-      // If the GEPArgs have a RestOff that is strictly positive, we have to
-      // inject the remaining part of the pointer arithmetic as normal sums
-      auto GEPResultBitWidth = ModelGEPPtr->getType()->getIntegerBitWidth();
-      APInt OffsetToAdd = MismatchedOffset.zextOrTrunc(GEPResultBitWidth);
-      if (not OffsetToAdd.isNullValue())
-        ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
-                                        ConstantInt::get(Ctxt, OffsetToAdd));
-      for (const auto &[Coefficient, Index] : MismatchedIndices) {
-        ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
-                                        Builder.CreateMul(Index, Coefficient));
-      }
-
-      if (UseType->isPointerTy()) {
-        // Convert the `AddressOf` result to a pointer in the IR if needed
-        ModelGEPPtr = Builder.CreateIntToPtr(ModelGEPPtr, UseType);
-      } else if (UseType != ModelGEPPtr->getType() and UseType->isIntegerTy()) {
-        ModelGEPPtr = Builder.CreateZExt(ModelGEPPtr, UseType);
-      }
-
-      revng_assert(UseType == ModelGEPPtr->getType());
-    }
-
-    // Finally, replace the use to gepify with the call to the address of
-    // modelGEP, plus the potential arithmetic we've just build.
-    TheUseToGEPify->set(ModelGEPPtr);
-
-    revng_log(ModelGEPLog,
-              "    `-> replaced with: " << dumpToString(ModelGEPPtr));
-
-    if (IsPhi)
-      PhiIncomingsMaps[{ UserInstr, V }] = ModelGEPPtr;
-
-    Changed = true;
   }
 
   revng::verify(F.getParent());

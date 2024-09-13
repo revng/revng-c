@@ -11,9 +11,11 @@
 /// This pass changes the base address of stack memory access to either:
 ///
 /// * The stack frame of the function (allocated by the `revng_stack_frame`
-///   function).
+///   function in legacy mode, otherwise by an alloca annotated with the stack
+///   type).
 /// * The stack arguments of a call site (allocated by the
-///   `revng_call_stack_arguments` function), which is then passed in as the
+///   `revng_call_stack_arguments` function in legacy mode, otherwise by an
+///   alloca allocated with the argument type), which is then passed in as the
 ///   last argument of the function.
 /// * The (newly introduced) last argument of the function representing the
 ///   stack arguments.
@@ -24,7 +26,16 @@ struct SegregateStackAccessesPass : public llvm::ModulePass {
 public:
   static char ID;
 
-  SegregateStackAccessesPass() : llvm::ModulePass(ID) {}
+  /// This pass has two modes of operation:
+  /// - when LegacyLocalVariables is true it uses old FunctionTags, and
+  ///   dedicated functions to represent local variables and accesses to them
+  /// - when LegacyLocalVariables is false it uses regular LLVM
+  ///   alloca/load/store instructions to represent local variables and accesses
+  ///   to them
+  const bool LegacyLocalVariables;
+
+  SegregateStackAccessesPass(bool Legacy) :
+    llvm::ModulePass(ID), LegacyLocalVariables(Legacy) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 

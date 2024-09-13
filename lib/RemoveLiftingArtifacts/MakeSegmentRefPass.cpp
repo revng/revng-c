@@ -91,14 +91,10 @@ getStringLiteral(RawBinaryView &BinaryView,
 bool MakeSegmentRefPass::runOnModule(Module &M) {
   llvm::LLVMContext &Context = M.getContext();
 
-  OpaqueFunctionsPool<SegmentRefPoolKey> SegmentRefPool(&M, false);
-  initSegmentRefPool(SegmentRefPool, &M);
-
-  OpaqueFunctionsPool<TypePair> AddressOfPool(&M, false);
-  initAddressOfPool(AddressOfPool, &M);
-
-  OpaqueFunctionsPool<StringLiteralPoolKey> StringLiteralPool(&M, false);
-  initStringLiteralPool(StringLiteralPool, &M);
+  OpaqueFunctionsPool<SegmentRefPoolKey> SegmentRefPool = makeSegmentRefPool(M);
+  OpaqueFunctionsPool<TypePair> AddressOfPool = makeAddressOfPool(M);
+  OpaqueFunctionsPool<StringLiteralPoolKey>
+    StringLiteralPool = makeStringLiteralPool(M);
 
   auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();
@@ -194,8 +190,7 @@ bool MakeSegmentRefPass::runOnModule(Module &M) {
                                                             {},
                                                             "segmentRef");
 
-              auto UniqueIDMDName = FunctionTags::UniqueIDMDName;
-              if (SegmentRefFunction->getMetadata(UniqueIDMDName) == nullptr) {
+              if (not hasSegmentKeyMetadata(*SegmentRefFunction)) {
                 setSegmentKeyMetadata(*SegmentRefFunction,
                                       StartAddress,
                                       VirtualSize);

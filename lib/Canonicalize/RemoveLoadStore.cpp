@@ -82,10 +82,8 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
   llvm::IRBuilder<> Builder(LLVMCtx);
 
   // Initialize function pool
-  OpaqueFunctionsPool<llvm::Type *> AssignPool(&M, false);
-  initAssignPool(AssignPool);
-  OpaqueFunctionsPool<llvm::Type *> CopyPool(&M, false);
-  initCopyPool(CopyPool);
+  OpaqueFunctionsPool<llvm::Type *> AssignPool = makeAssignPool(M);
+  OpaqueFunctionsPool<llvm::Type *> CopyPool = makeCopyPool(M);
 
   llvm::SmallVector<llvm::Instruction *, 32> ToRemove;
 
