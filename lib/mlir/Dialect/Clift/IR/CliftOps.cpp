@@ -94,6 +94,106 @@ bool clift::impl::verifyExpressionRegion(Region &R, const bool Required) {
   return R.empty() or static_cast<bool>(getExpressionYieldOp(R));
 }
 
+//===-------------------------- Operation parsing -------------------------===//
+
+template<typename TypeOrPointer>
+static Type deduceResultType(llvm::ArrayRef<TypeOrPointer> Arguments) {
+  const auto getType = [](TypeOrPointer Argument) -> ValueType {
+    if constexpr (std::is_same_v<TypeOrPointer, Type>) {
+      return mlir::cast<ValueType>(Argument);
+    } else {
+      return mlir::cast<ValueType>(*Argument);
+    }
+  };
+
+  auto CommonType = getType(Arguments.front()).removeConst();
+  for (TypeOrPointer Argument : Arguments.slice(0)) {
+    if (getType(Argument).removeConst() != CommonType)
+      return {};
+  }
+
+  return CommonType;
+}
+
+ParseResult
+mlir::clift::impl::parseCliftOpTypes(OpAsmParser &Parser,
+                                     Type *Result,
+                                     llvm::ArrayRef<Type *> Arguments) {
+  Type &FirstArgument = *Arguments.front();
+  if (Parser.parseOptionalLParen().succeeded()) {
+    if (Parser.parseType(FirstArgument).failed())
+      return mlir::failure();
+
+    for (Type *Argument : Arguments.slice(1)) {
+      if (Parser.parseComma().failed())
+        return mlir::failure();
+      if (Parser.parseType(*Argument).failed())
+        return mlir::failure();
+    }
+
+    if (Parser.parseRParen().failed())
+      return mlir::failure();
+  } else {
+    if (Parser.parseType(FirstArgument).failed())
+      return mlir::failure();
+
+    for (Type *Argument : Arguments.slice(1))
+      *Argument = FirstArgument;
+  }
+
+  if (Result != nullptr) {
+    if (Parser.parseOptionalArrow().succeeded()) {
+      if (Parser.parseType(*Result).failed())
+        return mlir::failure();
+    } else if (ValueType Deduced = deduceResultType(Arguments)) {
+      *Result = Deduced;
+    } else {
+      return Parser.emitError(Parser.getCurrentLocation(),
+                              "expected arrow followed by result type");
+    }
+  }
+
+  return mlir::success();
+}
+
+void mlir::clift::impl::printCliftOpTypes(OpAsmPrinter &Printer,
+                                          Type Result,
+                                          llvm::ArrayRef<Type> Arguments) {
+  bool ArgumentsEqual = llvm::all_equal(Arguments);
+  Type FirstArgument = Arguments.front();
+
+  if (ArgumentsEqual) {
+    Printer << FirstArgument;
+  } else {
+    Printer << "(";
+    Printer << FirstArgument;
+    for (Type Argument : Arguments.slice(1)) {
+      Printer << ", ";
+      Printer << Argument;
+    }
+    Printer << ")";
+  }
+
+  if (Result) {
+    bool IsDeducible = false;
+    if (ArgumentsEqual) {
+      if (Result == FirstArgument) {
+        IsDeducible = true;
+      } else {
+        auto FirstArgumentT = mlir::cast<ValueType>(FirstArgument);
+        IsDeducible = Result == FirstArgumentT.removeConst();
+      }
+    } else {
+      IsDeducible = Result == deduceResultType(Arguments);
+    }
+
+    if (not IsDeducible) {
+      Printer << " -> ";
+      Printer << Result;
+    }
+  }
+}
+
 //===------------------------------ ModuleOp ------------------------------===//
 
 void clift::ModuleOp::build(OpBuilder &Builder, OperationState &State) {
