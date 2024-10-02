@@ -9,17 +9,37 @@
 
 namespace mlir::clift {
 
-inline mlir::Type dealias(ValueType Type) {
-  const auto GetTypedefTypeAttr = [](ValueType Type) -> TypedefTypeAttr {
-    if (auto D = mlir::dyn_cast<DefinedType>(Type))
-      return mlir::dyn_cast<TypedefTypeAttr>(D.getElementType());
-    return nullptr;
-  };
+struct TypedefDecomposition {
+  ValueType Type;
+  bool HasConstTypedef;
+};
 
-  while (auto Attr = GetTypedefTypeAttr(Type))
-    Type = Attr.getUnderlyingType();
+inline TypedefDecomposition decomposeTypedef(ValueType Type) {
+  bool HasConstTypedef = false;
 
-  return Type;
+  while (true) {
+    auto D = mlir::dyn_cast<DefinedType>(Type);
+    if (not D)
+      break;
+
+    auto T = mlir::dyn_cast<TypedefTypeAttr>(D.getElementType());
+    if (not T)
+      break;
+
+    Type = T.getUnderlyingType();
+    HasConstTypedef |= D.isConst();
+  }
+
+  return { Type, HasConstTypedef };
+}
+
+inline ValueType dealias(ValueType Type) {
+  auto [UnderlyingType, HasConstTypedef] = decomposeTypedef(Type);
+
+  if (HasConstTypedef)
+    UnderlyingType = UnderlyingType.addConst();
+
+  return UnderlyingType;
 }
 
 inline bool isVoid(ValueType Type) {
@@ -64,19 +84,36 @@ inline bool isScalarType(ValueType Type) {
   return mlir::isa<PointerType>(Type);
 }
 
+inline bool isIntegerKind(PrimitiveKind Kind) {
+  switch (Kind) {
+  case PrimitiveKind::NumberKind:
+  case PrimitiveKind::UnsignedKind:
+  case PrimitiveKind::SignedKind:
+    return true;
+  default:
+    return false;
+  }
+}
+
+inline PrimitiveType getUnderlyingIntegerType(ValueType Type) {
+  Type = dealias(Type);
+
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
+    return isIntegerKind(T.getKind()) ? T : nullptr;
+
+  if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
+    if (auto EnumT = mlir::dyn_cast<EnumTypeAttr>(T.getElementType()))
+      return mlir::cast<PrimitiveType>(dealias(EnumT.getUnderlyingType()));
+  }
+
+  return nullptr;
+}
+
 inline bool isIntegerType(ValueType Type) {
   Type = dealias(Type);
 
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
-    switch (T.getKind()) {
-    case PrimitiveKind::NumberKind:
-    case PrimitiveKind::UnsignedKind:
-    case PrimitiveKind::SignedKind:
-      return true;
-    default:
-      return false;
-    }
-  }
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
+    return isIntegerKind(T.getKind());
 
   if (auto T = mlir::dyn_cast<DefinedType>(Type))
     return mlir::isa<EnumTypeAttr>(T.getElementType());
@@ -109,6 +146,16 @@ inline bool isObjectType(ValueType Type) {
 
 inline bool isArrayType(ValueType Type) {
   return mlir::isa<ArrayType>(dealias(Type));
+}
+
+inline bool isClassType(ValueType Type) {
+  if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
+    if (mlir::isa<StructTypeAttr>(T.getElementType()))
+      return true;
+    if (mlir::isa<UnionTypeAttr>(T.getElementType()))
+      return true;
+  }
+  return false;
 }
 
 inline bool verifyFunctionReturnType(ValueType ReturnType) {
