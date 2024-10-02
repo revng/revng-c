@@ -15,6 +15,18 @@ def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
 }
 
 def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Returns the memref operand to read from.",
+      /*retTy=*/"bool",
+      /*methodName=*/"isLvalueExpression",
+      /*args=*/(ins),
+      /*methodBody*/[{}],
+      /*defaultImplementation=*/ [{
+        return false;
+      }]
+    >,
+  ];
 }
 
 #endif
