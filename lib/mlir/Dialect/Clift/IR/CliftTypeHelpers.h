@@ -84,6 +84,10 @@ inline bool isIntegerType(ValueType Type) {
   return false;
 }
 
+inline bool isPointerType(ValueType Type) {
+  return mlir::isa<PointerType>(dealias(Type));
+}
+
 inline bool isObjectType(ValueType Type) {
   Type = dealias(Type);
 
