@@ -83,6 +83,9 @@ public:
   [[nodiscard]] bool getAlias(llvm::raw_ostream &OS) const;
   [[nodiscard]] BoolAttr getIsConst() const;
 
+  [[nodiscard]] clift::ValueType addConst() const { return *this; }
+  [[nodiscard]] clift::ValueType removeConst() const { return *this; }
+
   static Type parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;
 
