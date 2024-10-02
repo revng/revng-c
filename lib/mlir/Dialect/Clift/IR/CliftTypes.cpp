@@ -32,6 +32,20 @@ void CliftDialect::registerTypes() {
            /* End of auto-generated list */>();
 }
 
+static mlir::Type parseConstType(mlir::AsmParser &Parser) {
+  if (Parser.parseLess().failed())
+    return {};
+
+  mlir::Type UnderlyingType;
+  if (Parser.parseType(UnderlyingType).failed())
+    return {};
+
+  if (Parser.parseGreater().failed())
+    return {};
+
+  return mlir::cast<ValueType>(UnderlyingType).addConst();
+}
+
 /// Parse a type registered to this dialect
 mlir::Type CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
   const llvm::SMLoc TypeLoc = Parser.getCurrentLocation();
@@ -40,6 +54,9 @@ mlir::Type CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
   if (mlir::Type GenType;
       generatedTypeParser(Parser, &Mnemonic, GenType).has_value())
     return GenType;
+
+  if (Mnemonic == "const")
+    return parseConstType(Parser);
 
   if (Mnemonic == ScalarTupleType::getMnemonic())
     return ScalarTupleType::parse(Parser);
