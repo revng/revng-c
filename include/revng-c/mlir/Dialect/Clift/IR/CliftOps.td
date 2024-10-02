@@ -26,7 +26,7 @@ def Clift_AnyValueType
          "Clift value type",
          "mlir::clift::ValueType">;
 
-def Clift_FunctionType
+def Clift_AnyFunctionType
   : Type<CPred<"mlir::clift::impl::verifyFunctionType($_self)">,
          "Clift function type",
          "mlir::clift::ValueType">;
@@ -74,7 +74,7 @@ def Clift_FunctionOp : Clift_Op<"func",
                                  IsolatedFromAbove,
                                  NoTerminator]> {
   let arguments = (ins StrAttr:$sym_name,
-                       TypeAttrOf<Clift_FunctionType>:$function_type,
+                       TypeAttrOf<Clift_AnyFunctionType>:$function_type,
                        DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
 
   let description = [{
