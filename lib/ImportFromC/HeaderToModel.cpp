@@ -24,18 +24,6 @@ static constexpr llvm::StringRef InputCFile = "revng-input.c";
 static constexpr llvm::StringRef PrimitiveTypeHeader = "primitive-types.h";
 static constexpr llvm::StringRef RawABIPrefix = "raw_";
 
-template<typename T>
-concept HasCustomName = requires(const T &Element) {
-  { Element.CustomName() } -> std::same_as<const model::Identifier &>;
-  { Element.name() } -> std::same_as<model::Identifier>;
-};
-
-template<HasCustomName T>
-static void setCustomName(T &Element, llvm::StringRef NewName) {
-  if (Element.name() != NewName)
-    Element.CustomName() = NewName;
-}
-
 namespace clang {
 namespace tooling {
 
@@ -69,6 +57,7 @@ private:
 class DeclVisitor : public clang::RecursiveASTVisitor<DeclVisitor> {
 private:
   TupleTree<model::Binary> &Model;
+  const model::NamingHelper NamingHelper;
   ASTContext &Context;
   std::optional<model::TypeDefinition::Key> Type;
   MetaAddress FunctionEntry;
@@ -85,12 +74,12 @@ private:
   std::optional<llvm::SmallVector<RawLocation, 4>> MultiRegisterReturnValue;
 
 public:
-  explicit DeclVisitor(TupleTree<model::Binary> &Model,
-                       ASTContext &Context,
-                       std::optional<model::TypeDefinition::Key> Type,
-                       MetaAddress FunctionEntry,
-                       ImportingErrorList &Errors,
-                       enum ImportFromCOption AnalysisOption);
+  DeclVisitor(TupleTree<model::Binary> &Model,
+              ASTContext &Context,
+              std::optional<model::TypeDefinition::Key> Type,
+              MetaAddress FunctionEntry,
+              ImportingErrorList &Errors,
+              enum ImportFromCOption AnalysisOption);
 
   void run(clang::TranslationUnitDecl *TUD);
   bool TraverseDecl(clang::Decl *D);
@@ -152,6 +141,7 @@ DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
                          ImportingErrorList &Errors,
                          enum ImportFromCOption AnalysisOption) :
   Model(Model),
+  NamingHelper(Model->namingHelper()),
   Context(Context),
   Type(Type),
   FunctionEntry(FunctionEntry),
@@ -560,7 +550,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
       }
 
       model::Argument &NewArgument = FunctionType.Arguments()[Index];
-      setCustomName(NewArgument, FD->getParamDecl(I)->getName());
+      NewArgument.CustomName() = FD->getParamDecl(I)->getName();
       NewArgument.Type() = std::move(ParamType);
       ++Index;
     }
@@ -710,9 +700,10 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     }
   }
 
-  // Update the name if in the case it got changed.
+  // Update the name in case it changed.
   auto &ModelFunction = Model->Functions()[FunctionEntry];
-  setCustomName(ModelFunction, FD->getName());
+  if (NamingHelper.function(ModelFunction) != FD->getName())
+    ModelFunction.CustomName() = FD->getName();
 
   // TODO: remember/clone StackFrameType as well.
 
@@ -769,7 +760,8 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
 
   auto TheTypeTypeDef = cast<model::TypedefDefinition>(NewTypedef.get());
   TheTypeTypeDef->UnderlyingType() = std::move(ModelTypedefType);
-  setCustomName(*TheTypeTypeDef, D->getName());
+  if (NamingHelper.type(*TheTypeTypeDef) != D->getName())
+    TheTypeTypeDef->CustomName() = D->getName();
 
   if (AnalysisOption == ImportFromCOption::EditType) {
     revng_assert(*Type == NewTypedef->key());
@@ -875,7 +867,8 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = ID;
 
-  setCustomName(*NewType, RD->getName());
+  if (NamingHelper.type(*NewType) != RD->getName())
+    NewType->CustomName() = RD->getName();
   auto *Struct = cast<model::StructDefinition>(NewType.get());
   uint64_t CurrentOffset = 0;
 
@@ -953,15 +946,15 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       Size = *ModelField->size();
     }
 
-    constexpr auto PaddingPre = ptml::CTypeBuilder::structPaddingPrefix();
-    bool IsPadding = Field->getName().starts_with(PaddingPre);
+    auto PaddingPrefix = NamingHelper.Configuration.structPaddingPrefix();
+    bool IsPadding = Field->getName().starts_with(PaddingPrefix);
     auto ExplicitOffset = parseIntegerAnnotation<"_START_AT">(*Field, Errors);
     if (ExplicitOffset.has_value()) {
       if (IsPadding) {
         Errors.emplace_back("import-from-c: While parsing field #"
                             + std::to_string(Struct->Fields().size()) + ":\n");
         Errors.emplace_back("import-from-c failed: Padding fields (`uint8_t "
-                            "_padding_at_$offset[$size]`) must not have "
+                            "padding_at_$offset[$size]`) must not have "
                             "`_START_AT` annotation attached.\n");
         return false;
       }
@@ -979,7 +972,8 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
 
     if (not IsPadding) {
       auto &FieldModelType = Struct->Fields()[CurrentOffset];
-      setCustomName(FieldModelType, Field->getName());
+      if (NamingHelper.field(FieldModelType, *Struct) != Field->getName())
+        FieldModelType.CustomName() = Field->getName();
       FieldModelType.Type() = std::move(ModelField);
     } else {
       // Do not create fields for padding
@@ -1042,7 +1036,8 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = ID;
 
-  setCustomName(*NewType, RD->getName().str());
+  if (NamingHelper.type(*NewType) != RD->getName().str())
+    NewType->CustomName() = RD->getName().str();
   auto Union = cast<model::UnionDefinition>(NewType.get());
 
   uint64_t CurrentIndex = 0;
@@ -1066,7 +1061,8 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     }
 
     auto &FieldModelType = Union->Fields()[CurrentIndex];
-    setCustomName(FieldModelType, Field->getName());
+    if (NamingHelper.field(FieldModelType, *Union) != Field->getName())
+      FieldModelType.CustomName() = Field->getName();
     FieldModelType.Type() = std::move(TheFieldType);
 
     ++CurrentIndex;
@@ -1171,7 +1167,8 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   NewType->UnderlyingType() = std::move(UnderlyingType);
 
   auto *Definition = D->getDefinition();
-  setCustomName(*NewType, Definition->getName());
+  if (NamingHelper.type(*NewType) != Definition->getName())
+    NewType->CustomName() = Definition->getName();
   for (const auto *Enum : Definition->enumerators()) {
     auto Value = Enum->getInitVal().getExtValue();
     auto NewIterator = NewType->Entries().emplace(Value).first;

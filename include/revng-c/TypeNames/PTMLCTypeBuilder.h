@@ -14,6 +14,10 @@ class CTypeBuilder : public CBuilder {
 public:
   using OutStream = ptml::IndentedOstream;
 
+public:
+  const model::Binary &Binary;
+  const model::NamingHelper NamingHelper;
+
 protected:
   /// The stream to print the result to.
   std::unique_ptr<OutStream> Out;
@@ -78,7 +82,7 @@ public:
   /// Gather (and store internally) the list of types that can (and should)
   /// be inlined. This list is then later used by the invocations of
   /// \ref printTypeDefinition.
-  void collectInlinableTypes(const model::Binary &Model);
+  void collectInlinableTypes();
 
   bool shouldInline(model::TypeDefinition::Key Key) const {
     revng_assert(InlinableCacheIsReady,
@@ -105,34 +109,46 @@ public:
 
 public:
   CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary,
                CBuilder B,
                ConfigurationOptions &&Configuration) :
     CBuilder(B),
+    Binary(Binary),
+    NamingHelper(Binary.namingHelper()),
     Out(std::make_unique<OutStream>(OutputStream,
                                     *this,
                                     DecompiledCCodeIndentation)),
     Configuration(std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream, CBuilder B) :
-    CTypeBuilder(OutputStream, B, ConfigurationOptions{}) {}
+  CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary,
+               CBuilder B) :
+    CTypeBuilder(OutputStream, Binary, B, ConfigurationOptions{}) {}
 
   CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary,
                bool EnableTaglessMode,
                ConfigurationOptions &&Configuration) :
     CTypeBuilder(OutputStream,
+                 Binary,
                  ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode },
                  std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream, bool EnableTaglessMode) :
+  CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary,
+               bool EnableTaglessMode) :
     CTypeBuilder(OutputStream,
+                 Binary,
                  ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode }) {}
 
   CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary,
                ConfigurationOptions &&Configuration) :
-    CTypeBuilder(OutputStream, {}, std::move(Configuration)) {}
+    CTypeBuilder(OutputStream, Binary, {}, std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream) :
-    CTypeBuilder(OutputStream, {}, {}) {}
+  CTypeBuilder(llvm::raw_ostream &OutputStream,
+               const model::Binary &Binary = {}) :
+    CTypeBuilder(OutputStream, Binary, {}, {}) {}
 
 public:
   void setOutputStream(llvm::raw_ostream &OutputStream) {
@@ -169,18 +185,19 @@ public:
 
 public:
   auto getNameTag(const model::TypeDefinition &T) const {
-    return tokenTag(T.name().str().str(), ptml::c::tokens::Type);
+    return tokenTag(NamingHelper.type(T), ptml::c::tokens::Type);
   }
   auto getNameTag(const model::Segment &S) const {
-    return tokenTag(S.name(), ptml::c::tokens::Variable);
+    return tokenTag(NamingHelper.segment(S), ptml::c::tokens::Variable);
   }
   auto getNameTag(const model::EnumDefinition &Enum,
                   const model::EnumEntry &Entry) const {
-    return tokenTag(Enum.entryName(Entry), ptml::c::tokens::Field);
+    return tokenTag(NamingHelper.enumEntry(Entry, Enum),
+                    ptml::c::tokens::Field);
   }
   template<class Aggregate, class Field>
-  auto getNameTag(const Aggregate &, const Field &F) const {
-    return tokenTag(F.name(), c::tokens::Field);
+  auto getNameTag(const Aggregate &A, const Field &F) const {
+    return tokenTag(NamingHelper.field(F, A), c::tokens::Field);
   }
 
 private:
@@ -332,8 +349,7 @@ public:
     return ptml::comment(*this, T, "///", 0, 80);
   }
 
-  std::string getFunctionComment(const model::Function &Function,
-                                 const model::Binary &Binary) const {
+  std::string getFunctionComment(const model::Function &Function) const {
     return ptml::functionComment(*this, Function, Binary, "///", 0, 80);
   }
 
@@ -465,12 +481,12 @@ public:
   /// Please use this instead of calling \ref typeDefinition
   /// on every type, as types can depend on each other.
   /// This method ensures they are printed in a valid order.
-  void printTypeDefinitions(const model::Binary &Model);
+  void printTypeDefinitions();
 };
 
 } // namespace ptml
 
 inline std::string getPlainTypeName(const model::Type &Type) {
-  ptml::CTypeBuilder B(llvm::nulls(), /* EnableTaglessMode = */ true);
+  ptml::CTypeBuilder B(llvm::nulls(), {}, /* EnableTaglessMode = */ true);
   return B.getTypeName(Type).str().str();
 }

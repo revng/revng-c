@@ -808,7 +808,11 @@ private:
     MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
     const model::Function &ModelFunction = Binary.Functions().at(Entry);
 
-    revng_log(Log, "Segregating " << ModelFunction.name().str());
+    if (Log.isEnabled()) {
+      revng_log(Log,
+                "Segregating "
+                  << Binary.namingHelper().function(ModelFunction).str());
+    }
     LoggerIndent<> Indent(Log);
 
     // Lookup the redirector, if any
