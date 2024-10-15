@@ -32,6 +32,20 @@ void CliftDialect::registerTypes() {
            /* End of auto-generated list */>();
 }
 
+static mlir::Type parseConstType(mlir::AsmParser &Parser) {
+  if (Parser.parseLess().failed())
+    return {};
+
+  mlir::Type UnderlyingType;
+  if (Parser.parseType(UnderlyingType).failed())
+    return {};
+
+  if (Parser.parseGreater().failed())
+    return {};
+
+  return mlir::cast<ValueType>(UnderlyingType).addConst();
+}
+
 /// Parse a type registered to this dialect
 mlir::Type CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
   const llvm::SMLoc TypeLoc = Parser.getCurrentLocation();
@@ -40,6 +54,9 @@ mlir::Type CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
   if (mlir::Type GenType;
       generatedTypeParser(Parser, &Mnemonic, GenType).has_value())
     return GenType;
+
+  if (Mnemonic == "const")
+    return parseConstType(Parser);
 
   if (Mnemonic == ScalarTupleType::getMnemonic())
     return ScalarTupleType::parse(Parser);
@@ -126,6 +143,26 @@ bool PrimitiveType::getAlias(llvm::raw_ostream &OS) const {
   return true;
 }
 
+ValueType PrimitiveType::addConst() const {
+  if (isConst())
+    return *this;
+
+  return get(getContext(),
+             getKind(),
+             getSize(),
+             BoolAttr::get(getContext(), true));
+}
+
+ValueType PrimitiveType::removeConst() const {
+  if (not isConst())
+    return *this;
+
+  return get(getContext(),
+             getKind(),
+             getSize(),
+             BoolAttr::get(getContext(), false));
+}
+
 //===----------------------------- PointerType ----------------------------===//
 
 mlir::LogicalResult PointerType::verify(EmitErrorType EmitError,
@@ -146,12 +183,31 @@ uint64_t PointerType::getByteSize() const {
   return getPointerSize();
 }
 
+ValueType PointerType::addConst() const {
+  if (isConst())
+    return *this;
+
+  return get(getContext(),
+             getPointeeType(),
+             getPointerSize(),
+             BoolAttr::get(getContext(), true));
+}
+
+ValueType PointerType::removeConst() const {
+  if (not isConst())
+    return *this;
+
+  return get(getContext(),
+             getPointeeType(),
+             getPointerSize(),
+             BoolAttr::get(getContext(), false));
+}
+
 //===------------------------------ ArrayType -----------------------------===//
 
 mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
                                       ValueType ElementType,
-                                      uint64_t ElementCount,
-                                      BoolAttr IsConst) {
+                                      uint64_t ElementCount) {
   if (not isObjectType(ElementType))
     return EmitError() << "Array type element type must be an object type.";
   if (ElementCount == 0)
@@ -164,6 +220,30 @@ uint64_t ArrayType::getByteSize() const {
   return getElementType().getByteSize() * getElementsCount();
 }
 
+bool ArrayType::isConst() const {
+  return getElementType().isConst();
+}
+
+ValueType ArrayType::addConst() const {
+  auto ElementT = getElementType();
+  auto NewElementT = ElementT.addConst();
+
+  if (ElementT == NewElementT)
+    return *this;
+
+  return get(getContext(), NewElementT, getElementsCount());
+}
+
+ValueType ArrayType::removeConst() const {
+  auto ElementT = getElementType();
+  auto NewElementT = ElementT.removeConst();
+
+  if (ElementT == NewElementT)
+    return *this;
+
+  return get(getContext(), NewElementT, getElementsCount());
+}
+
 //===----------------------------- DefinedType ----------------------------===//
 
 mlir::LogicalResult DefinedType::verify(EmitErrorType EmitError,
@@ -172,11 +252,11 @@ mlir::LogicalResult DefinedType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-uint64_t DefinedType::id() {
+uint64_t DefinedType::id() const {
   return getElementType().id();
 }
 
-llvm::StringRef DefinedType::name() {
+llvm::StringRef DefinedType::name() const {
   return getElementType().name();
 }
 
@@ -194,6 +274,22 @@ bool DefinedType::getAlias(llvm::raw_ostream &OS) const {
   if (isConst())
     OS << "$const";
   return true;
+}
+
+ValueType DefinedType::addConst() const {
+  if (getIsConst())
+    return *this;
+
+  return get(getContext(), getElementType(), BoolAttr::get(getContext(), true));
+}
+
+ValueType DefinedType::removeConst() const {
+  if (not getIsConst())
+    return *this;
+
+  return get(getContext(),
+             getElementType(),
+             BoolAttr::get(getContext(), false));
 }
 
 //===--------------------------- ScalarTupleType --------------------------===//
