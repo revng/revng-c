@@ -1,0 +1,32 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+tags:
+  - name: name-collisions
+sources:
+  - tags: [name-collisions]
+    prefix: share/revng/test/tests/name-collisions/
+    members:
+      - no-collisions
+      - function-name
+      - argument-name
+      - custom-prefix
+
+commands:
+  - type: revng-c.name-collisions
+    from:
+      - type: source
+        filter: name-collisions
+    suffix: /
+    command: |-
+      revng model opt -Y -verify "${INPUT}/input-model.yml"
+        1> "${OUTPUT}/model.yml"
+        2> "${OUTPUT}/error.txt"
+
+      && revng artifact emit-model-header /dev/null --model "${OUTPUT}/model.yml"
+        | revng ptml | tee "${OUTPUT}/header.h"
+        | FileCheck "${INPUT}/expected-header.txt"
+
+      || cat "${OUTPUT}/error.txt"
+        | FileCheck "${INPUT}/expected-error.txt"

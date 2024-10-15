@@ -21,6 +21,7 @@ using AttributeVector = llvm::SmallVector<Attribute, 16>;
 
 class CliftConverter {
   mlir::MLIRContext *Context;
+  const model::NamingHelper NamingHelper;
   llvm::function_ref<mlir::InFlightDiagnostic()> EmitError;
 
   llvm::DenseMap<uint64_t, clift::TypeDefinitionAttr> Cache;
@@ -56,9 +57,12 @@ class CliftConverter {
 
 public:
   explicit CliftConverter(mlir::MLIRContext &Context,
+                          const model::Binary &Binary,
                           llvm::function_ref<mlir::InFlightDiagnostic()>
                             EmitError) :
-    Context(&Context), EmitError(EmitError) {}
+    Context(&Context),
+    NamingHelper(Binary.namingHelper()),
+    EmitError(EmitError) {}
 
   CliftConverter(const CliftConverter &) = delete;
   CliftConverter &operator=(const CliftConverter &) = delete;
@@ -149,7 +153,7 @@ private:
       rc_return nullptr;
 
     rc_return make<clift::FunctionTypeAttr>(ModelType.ID(),
-                                            ModelType.name(),
+                                            NamingHelper.type(ModelType),
                                             ReturnType,
                                             ArgumentTypes);
   }
@@ -172,16 +176,15 @@ private:
     Fields.reserve(ModelType.Entries().size());
 
     for (const model::EnumEntry &Entry : ModelType.Entries()) {
-      const auto Attribute = make<clift::EnumFieldAttr>(Entry.Value(),
-                                                        ModelType
-                                                          .entryName(Entry));
+      model::Identifier Name = NamingHelper.enumEntry(Entry, ModelType);
+      const auto Attribute = make<clift::EnumFieldAttr>(Entry.Value(), Name);
       if (not Attribute)
         rc_return nullptr;
       Fields.push_back(Attribute);
     }
 
     rc_return make<clift::EnumTypeAttr>(ModelType.ID(),
-                                        ModelType.name(),
+                                        NamingHelper.type(ModelType),
                                         UnderlyingType,
                                         Fields);
   }
@@ -198,7 +201,10 @@ private:
       if (not RegisterType)
         rc_return nullptr;
 
-      const auto Attribute = make<ElementAttr>(RegisterType, Register.name());
+      const auto Attribute = make<ElementAttr>(RegisterType,
+                                               NamingHelper
+                                                 .returnValue(Register,
+                                                              ModelType));
       if (not Attribute)
         rc_return nullptr;
 
@@ -274,7 +280,7 @@ private:
       rc_return nullptr;
 
     rc_return make<clift::FunctionTypeAttr>(ModelType.ID(),
-                                            ModelType.name(),
+                                            NamingHelper.type(ModelType),
                                             ReturnType,
                                             ArgumentTypes);
   }
@@ -305,16 +311,17 @@ private:
                                                /* RequireComplete = */ true);
       if (not FieldType)
         rc_return nullptr;
-      const auto Attribute = make<clift::FieldAttr>(Field.Offset(),
-                                                    FieldType,
-                                                    Field.name());
+      auto Attribute = make<clift::FieldAttr>(Field.Offset(),
+                                              FieldType,
+                                              NamingHelper.field(Field,
+                                                                 ModelType));
       if (not Attribute)
         rc_return nullptr;
       Fields.push_back(Attribute);
     }
 
     rc_return make<clift::StructTypeAttr>(ModelType.ID(),
-                                          ModelType.name(),
+                                          NamingHelper.type(ModelType),
                                           ModelType.Size(),
                                           Fields);
   }
@@ -339,7 +346,7 @@ private:
     if (not UnderlyingType)
       rc_return nullptr;
     rc_return make<clift::TypedefTypeAttr>(ModelType.ID(),
-                                           ModelType.name(),
+                                           NamingHelper.type(ModelType),
                                            UnderlyingType);
   }
 
@@ -369,14 +376,17 @@ private:
                                                /* RequireComplete = */ true);
       if (not FieldType)
         rc_return nullptr;
-      const auto Attribute = make<clift::FieldAttr>(0, FieldType, Field.name());
+      auto Attribute = make<clift::FieldAttr>(0,
+                                              FieldType,
+                                              NamingHelper.field(Field,
+                                                                 ModelType));
       if (not Attribute)
         rc_return nullptr;
       Fields.push_back(Attribute);
     }
 
     rc_return make<clift::UnionTypeAttr>(ModelType.ID(),
-                                         ModelType.name(),
+                                         NamingHelper.type(ModelType),
                                          Fields);
   }
 
@@ -500,13 +510,16 @@ private:
 clift::ValueType
 clift::importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                        mlir::MLIRContext &Context,
-                       const model::TypeDefinition &ModelType) {
-  return CliftConverter(Context, EmitError).convertTypeDefinition(ModelType);
+                       const model::TypeDefinition &ModelType,
+                       const model::Binary &Binary) {
+  return CliftConverter(Context, Binary, EmitError)
+    .convertTypeDefinition(ModelType);
 }
 
 clift::ValueType
 clift::importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                        mlir::MLIRContext &Context,
-                       const model::Type &ModelType) {
-  return CliftConverter(Context, EmitError).convertType(ModelType);
+                       const model::Type &ModelType,
+                       const model::Binary &Binary) {
+  return CliftConverter(Context, Binary, EmitError).convertType(ModelType);
 }

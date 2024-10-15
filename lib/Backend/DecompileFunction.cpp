@@ -51,7 +51,6 @@
 #include "revng/Yield/PTML.h"
 
 #include "revng-c/Backend/DecompileFunction.h"
-#include "revng-c/Backend/DecompiledCCodeIndentation.h"
 #include "revng-c/HeadersGeneration/Options.h"
 #include "revng-c/InitModelTypes/InitModelTypes.h"
 #include "revng-c/Pipes/Ranks.h"
@@ -835,7 +834,8 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     } else {
       auto RF = llvm::cast<const model::RawFunctionDefinition>(CalleePrototype);
       uint64_t Idx = I->getZExtValue();
-      StructFieldRef = std::next(RF->ReturnValues().begin(), Idx)->name().str();
+      const auto &ReturnValue = std::next(RF->ReturnValues().begin(), Idx);
+      StructFieldRef = B.NamingHelper.returnValue(*ReturnValue, *RF).str();
     }
 
     rc_return rc_recur getToken(AggregateOp) + "." + StructFieldRef;
@@ -846,8 +846,6 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     const auto &[StartAddress,
                  VirtualSize] = extractSegmentKeyFromMetadata(*Callee);
     model::Segment Segment = Model.Segments().at({ StartAddress, VirtualSize });
-    auto Name = Segment.name();
-
     rc_return B.getLocationReference(Segment);
   }
 
@@ -914,7 +912,8 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       auto &DynamicFunc = Model.ImportedDynamicFunctions().at(DynFuncID);
       std::string Location = locationString(ranks::DynamicFunction,
                                             DynamicFunc.key());
-      CalleeToken = B.getTag(ptml::tags::Span, DynamicFunc.name().str())
+      CalleeToken = B.getTag(ptml::tags::Span,
+                             B.NamingHelper.dynamicFunction(DynamicFunc).str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationReferences, Location)
@@ -927,7 +926,8 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
                                                              *CalledFunc);
       revng_assert(ModelFunc);
       std::string Location = locationString(ranks::Function, ModelFunc->key());
-      CalleeToken = B.getTag(ptml::tags::Span, ModelFunc->name().str())
+      CalleeToken = B.getTag(ptml::tags::Span,
+                             B.NamingHelper.function(*ModelFunc).str())
                       .addAttribute(attributes::Token, tokens::Function)
                       .addAttribute(attributes::ActionContextLocation, Location)
                       .addAttribute(attributes::LocationReferences, Location)
@@ -1853,8 +1853,10 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   rc_return;
 }
 
-static std::string getModelArgIdentifier(const model::TypeDefinition *ModelFT,
-                                         const llvm::Argument &Argument) {
+static std::string
+getModelArgIdentifier(const model::TypeDefinition *ModelFT,
+                      const llvm::Argument &Argument,
+                      const model::NamingHelper &NamingHelper) {
   const llvm::Function *LLVMFunction = Argument.getParent();
   unsigned ArgNo = Argument.getArgNo();
 
@@ -1865,14 +1867,15 @@ static std::string getModelArgIdentifier(const model::TypeDefinition *ModelFT,
                  or (not RFT->StackArgumentsType().isEmpty()
                      and (LLVMFunction->arg_size() == NumModelArguments + 1)));
     if (ArgNo < NumModelArguments) {
-      return std::next(RFT->Arguments().begin(), ArgNo)->name().str().str();
+      const auto &Argument = std::next(RFT->Arguments().begin(), ArgNo);
+      return NamingHelper.argument(*Argument, *RFT).str().str();
     } else {
       return "_stack_arguments";
     }
   } else if (auto *CFT = dyn_cast<model::CABIFunctionDefinition>(ModelFT)) {
     revng_assert(LLVMFunction->arg_size() == CFT->Arguments().size());
     revng_assert(ArgNo < CFT->Arguments().size());
-    return CFT->Arguments().at(ArgNo).name().str().str();
+    return NamingHelper.argument(ArgNo, *CFT).str().str();
   }
   revng_abort("Unexpected function type");
 
@@ -1888,14 +1891,16 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
 
   // Extract user comments from the model and emit them as PTML just before
   // the prototype.
-  B.append(B.getFunctionComment(ModelFunction, Model));
+  B.append(B.getFunctionComment(ModelFunction));
 
   // Print function's prototype
   B.printFunctionPrototype(Prototype, ModelFunction, false);
 
   // Set up the argument identifiers to be used in the function's body.
   for (const auto &Arg : LLVMFunction.args()) {
-    std::string ArgString = getModelArgIdentifier(&Prototype, Arg);
+    std::string ArgString = getModelArgIdentifier(&Prototype,
+                                                  Arg,
+                                                  B.NamingHelper);
     TokenMap[&Arg] = B.getArgumentLocationReference(ArgString, ModelFunction);
   }
 

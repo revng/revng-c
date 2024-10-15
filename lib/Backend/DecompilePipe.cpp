@@ -31,14 +31,15 @@ void Decompile::run(pipeline::ExecutionContext &EC,
   namespace options = revng::options;
   ptml::CTypeBuilder
     B(llvm::nulls(),
+      Model,
       /* EnableTaglessMode = */ false,
       { .EnableTypeInlining = options::EnableTypeInlining,
         .EnableStackFrameInlining = !options::DisableStackFrameInlining });
-  B.collectInlinableTypes(Model);
+  B.collectInlinableTypes();
 
   for (const model::Function &Function :
        getFunctionsAndCommit(EC, DecompiledFunctions.name())) {
-    llvm::Function *F = Module.getFunction(getLLVMFunctionName(Function));
+    auto *F = Module.getFunction(B.NamingHelper.LLVMFunction(Function));
     std::string CCode = decompile(Cache, *F, Model, B);
     DecompiledFunctions.insert_or_assign(Function.Entry(), std::move(CCode));
   }
