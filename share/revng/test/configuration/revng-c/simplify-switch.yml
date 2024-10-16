@@ -15,5 +15,5 @@ commands:
       revng artifact
         --resume "$OUTPUT" --analyze simplify-switch
         --abi-enforcement-level=no "$INPUT" -o /dev/null ;
-      FileCheck
-        --input-file="$OUTPUT/simplify-switch/module.ll" "${SOURCE}.filecheck";
+      zstdcat "$OUTPUT/simplify-switch/module.ll" | llvm-dis |
+        FileCheck "${SOURCE}.filecheck";
