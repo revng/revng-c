@@ -115,6 +115,27 @@ static Type deduceResultType(llvm::ArrayRef<TypeOrPointer> Arguments) {
   return CommonType;
 }
 
+/// Parses one or more operand types optionally followed by a result type.
+///
+/// The argument types can be specified in two forms:
+///   * a single type, or
+///   * one or more types separated by commas and delimited by parentheses.
+///
+/// If no parentheses are used, the single specified argument type is used for
+/// all expected argument types. Otherwise the number of specified argument
+/// types must match the number of expected argument types.
+///
+/// The trailing result type is only accepted when @p Result is not null. When
+/// the result type is not specified, a default type is deduced by taking each
+/// argument types T and removing const to produce the unqualified type U. If
+/// all U are equal, then U is deduced. Otherwise the deduction is ambiguous
+/// and the parse fails.
+///
+/// Examples:
+///   - !a
+///   - !a -> !c
+///   - (!a, !b)
+///   - (!a, !b) -> !c
 ParseResult
 mlir::clift::impl::parseCliftOpTypes(OpAsmParser &Parser,
                                      Type *Result,
@@ -156,6 +177,13 @@ mlir::clift::impl::parseCliftOpTypes(OpAsmParser &Parser,
   return mlir::success();
 }
 
+/// @see parseCliftOpTypes for a general description of the syntax.
+///
+/// If all argument types are equal, a single argument is printed. Otherwise
+/// multiple arguments delimited by parentheses are printed.
+///
+/// If @p Result is not null and it cannot be deduced from the argument types,
+/// a trailing type is printed.
 void mlir::clift::impl::printCliftOpTypes(OpAsmPrinter &Printer,
                                           Type Result,
                                           llvm::ArrayRef<Type> Arguments) {
