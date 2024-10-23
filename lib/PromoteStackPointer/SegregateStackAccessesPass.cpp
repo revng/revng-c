@@ -26,8 +26,6 @@
 
 #include "revng-c/Pipes/Kinds.h"
 #include "revng-c/PromoteStackPointer/InstrumentStackAccessesPass.h"
-#include "revng-c/Support/FunctionTags.h"
-#include "revng-c/Support/IRHelpers.h"
 #include "revng-c/Support/ModelHelpers.h"
 
 #include "Helpers.h"
@@ -277,7 +275,7 @@ private:
 
   llvm::Type *PtrSizedInteger = nullptr;
   llvm::Type *OpaquePointerType = nullptr;
-  OpaqueFunctionsPool<TypePair> AddressOfPool;
+  OpaqueFunctionsPool<FunctionTags::TypePair> AddressOfPool;
   OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
 
 public:
@@ -293,16 +291,13 @@ public:
     CallInstructionPushSize(getCallPushSize(Binary)),
     PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
-    AddressOfPool(&M, false),
-    LocalVarPool(&M, false) {
+    AddressOfPool(FunctionTags::AddressOf.getPool(M)),
+    LocalVarPool(FunctionTags::LocalVariable.getPool(M)) {
 
     auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
     StackPointerType = GCBI.spReg()->getValueType();
 
     revng_assert(SSACS != nullptr);
-
-    initAddressOfPool(AddressOfPool, &M);
-    initLocalVarPool(LocalVarPool);
 
     // After segregate, we should not introduce new calls to
     // `_init_local_sp`: enable to DCE it away
