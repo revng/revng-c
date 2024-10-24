@@ -26,14 +26,8 @@ bool verifyStatementRegion(Region &R);
 bool verifyExpressionRegion(Region &R, bool Required);
 
 bool verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind);
-bool verifyIntegerType(ValueType Type);
-bool verifyScalarType(ValueType Type);
-bool verifyPointerType(ValueType Type);
-bool verifyFunctionType(ValueType Type);
 
-bool verifyModifiableType(ValueType Type);
-
-Type removeConst(Type T);
+mlir::Type removeCliftConst(mlir::Type Type);
 
 } // namespace mlir::clift::impl
 

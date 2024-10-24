@@ -58,33 +58,11 @@ bool clift::impl::verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind) {
   return false;
 }
 
-bool clift::impl::verifyScalarType(ValueType Type) {
-  return isScalarType(Type);
-}
+mlir::Type clift::impl::removeCliftConst(mlir::Type Type) {
+  if (auto ValueT = mlir::dyn_cast<ValueType>(Type))
+    Type = ValueT.removeConst();
 
-bool clift::impl::verifyIntegerType(ValueType Type) {
-  return isIntegerType(Type);
-}
-
-bool clift::impl::verifyPointerType(ValueType Type) {
-  return isPointerType(Type);
-}
-
-bool clift::impl::verifyFunctionType(ValueType Type) {
-  auto T = mlir::dyn_cast<DefinedType>(dealias(Type));
-  return T and mlir::isa<FunctionTypeAttr>(T.getElementType());
-}
-
-bool clift::impl::verifyModifiableType(ValueType Type) {
-  auto [UnderlyingType, HasConst] = decomposeTypedef(Type);
-  return not HasConst and not UnderlyingType.isConst();
-}
-
-Type clift::impl::removeConst(Type T) {
-  if (auto VT = mlir::dyn_cast<ValueType>(T))
-    return VT.removeConst();
-
-  return T;
+  return Type;
 }
 
 //===---------------------------- Region types ----------------------------===//

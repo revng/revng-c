@@ -36,12 +36,12 @@ class Clift_AnyPrimitiveTypeOf<string Kind>
          "mlir::clift::PrimitiveType">;
 
 def Clift_AnyScalarType
-  : Type<CPred<"mlir::clift::impl::verifyScalarType($_self)">,
+  : Type<CPred<"mlir::clift::isScalarType($_self)">,
          "Clift scalar type",
          "mlir::clift::ValueType">;
 
 def Clift_AnyIntegerType
-  : Type<CPred<"mlir::clift::impl::verifyIntegerType($_self)">,
+  : Type<CPred<"mlir::clift::isIntegerType($_self)">,
          "Clift integer type",
          "mlir::clift::ValueType">;
 
@@ -51,12 +51,12 @@ def Clift_AnyPrimitiveIntegerType
          "mlir::clift::PrimitiveType">;
 
 def Clift_AnyPointerType
-  : Type<CPred<"mlir::isa<mlir::clift::PointerType>($_self)">,
+  : Type<CPred<"mlir::clift::isPointerType($_self)">,
          "Clift pointer type",
          "mlir::clift::PointerType">;
 
 def Clift_AnyFunctionType
-  : Type<CPred<"mlir::clift::impl::verifyFunctionType($_self)">,
+  : Type<CPred<"mlir::clift::isFunctionType($_self)">,
          "Clift function type",
          "mlir::clift::ValueType">;
 
@@ -68,13 +68,13 @@ class Clift_AnyNonConstType<Type type>
 
 class Clift_AnyModifiableType<Type type>
   : Type<And<[type.predicate,
-              CPred<"mlir::clift::impl::verifyModifiableType($_self)">]>,
+              CPred<"mlir::clift::isModifiableType($_self)">]>,
          "modifiable",
          "mlir::clift::ValueType">;
 
 class Clift_AllTypesMatch<list<string> names>
   : AllMatchSameOperatorTrait<names,
-                              "mlir::clift::impl::removeConst($_self.getType())",
+                              "mlir::clift::impl::removeCliftConst($_self.getType())",
                               "type, ignoring qualifiers">;
 
 //===---------------------------- Region types ----------------------------===//
