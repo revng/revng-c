@@ -407,4 +407,240 @@ def Clift_YieldOp : Clift_ExpressionOp<"yield", [Terminator]> {
   }];
 }
 
+def Clift_ImmediateOp : Clift_ExpressionOp<"imm"> {
+  let arguments = (ins I64Attr:$value);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($result)
+  }];
+}
+
+class Clift_UnaryArithmeticOp<string mnemonic>
+  : Clift_ExpressionOp<mnemonic,
+                       [TypesMatchWith<"result type must match the value type, ignoring qualifiers",
+                                       "value",
+                                       "result",
+                                       "mlir::clift::impl::removeConst($_self)">]> {
+
+  let arguments = (ins Clift_AnyIntegerType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value)
+  }];
+}
+
+class Clift_BinaryArithmeticOp<string mnemonic>
+  : Clift_ExpressionOp<mnemonic,
+                       [Clift_AllTypesMatch<["lhs", "rhs", "result"]>]> {
+
+  let arguments = (ins Clift_AnyIntegerType:$lhs,
+                       Clift_AnyIntegerType:$rhs);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+
+  let assemblyFormat = [{
+    $lhs $rhs attr-dict `:`
+    custom<CliftOpTypes>(type($result), type($lhs), type($rhs))
+  }];
+}
+
+class Clift_ShiftOp<string mnemonic>
+  : Clift_ExpressionOp<mnemonic,
+                       [TypesMatchWith<"result type must match the lhs type, ignoring qualifiers",
+                                       "lhs",
+                                       "result",
+                                       "mlir::clift::impl::removeConst($_self)">]> {
+
+  let arguments = (ins Clift_AnyIntegerType:$lhs,
+                       Clift_AnyIntegerType:$rhs);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+
+  let assemblyFormat = [{
+    $lhs $rhs attr-dict `:` custom<CliftOpOperandTypes>(type($lhs), type($rhs))
+  }];
+}
+
+class Clift_ComparisonOp<string mnemonic>
+  : Clift_ExpressionOp<mnemonic,
+                       [Clift_AllTypesMatch<["lhs", "rhs"]>]> {
+
+  let arguments = (ins Clift_AnyScalarType:$lhs,
+                       Clift_AnyScalarType:$rhs);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveTypeOf<"SignedKind">>:$result);
+
+  let assemblyFormat = [{
+    $lhs $rhs attr-dict `:`
+    custom<CliftOpTypes>(type($result), type($lhs), type($rhs))
+  }];
+}
+
+def Clift_AddOp : Clift_BinaryArithmeticOp<"add">;
+def Clift_SubOp : Clift_BinaryArithmeticOp<"sub">;
+def Clift_MulOp : Clift_BinaryArithmeticOp<"mul">;
+def Clift_DivOp : Clift_BinaryArithmeticOp<"div">;
+def Clift_RemOp : Clift_BinaryArithmeticOp<"rem">;
+def Clift_NegOp : Clift_UnaryArithmeticOp<"neg">;
+
+def Clift_LogicalNotOp : Clift_UnaryArithmeticOp<"not">;
+def Clift_LogicalAndOp : Clift_UnaryArithmeticOp<"and">;
+def Clift_LogicalOrOp : Clift_UnaryArithmeticOp<"or">;
+
+def Clift_BitwiseNotOp : Clift_UnaryArithmeticOp<"bitnot">;
+def Clift_BitwiseAndOp : Clift_BinaryArithmeticOp<"bitand">;
+def Clift_BitwiseOrOp : Clift_BinaryArithmeticOp<"bitor">;
+def Clift_BitwiseXorOp : Clift_BinaryArithmeticOp<"bitxor">;
+
+def Clift_ShiftLeftOp : Clift_ShiftOp<"shl">;
+def Clift_BitwiseShiftRightOp : Clift_ShiftOp<"shr">;
+def Clift_ArithmeticShiftRightOp : Clift_ShiftOp<"sar">;
+
+def Clift_EqualOp : Clift_ComparisonOp<"eq">;
+def Clift_NotEqualOp : Clift_ComparisonOp<"ne">;
+def Clift_LessThanOp : Clift_ComparisonOp<"lt">;
+def Clift_GreaterThanOp : Clift_ComparisonOp<"gt">;
+def Clift_LessThanOrEqual : Clift_ComparisonOp<"le">;
+def Clift_GreaterThanOrEqual : Clift_ComparisonOp<"ge">;
+
+def Clift_CastOp : Clift_ExpressionOp<"cast"> {
+  let arguments = (ins Clift_AnyValueType:$value,
+                       Clift_CastKind:$kind,
+                       DefaultValuedStrAttr<StrAttr, "">:$purpose);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+
+  let assemblyFormat = [{
+    $kind $value attr-dict `:` type($value) `->` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_AddressofOp
+  : Clift_ExpressionOp<"addressof",
+                       [TypesMatchWith<"object type must match the pointee type of the result type",
+                                       "result",
+                                       "object",
+                                       "mlir::cast<PointerType>($_self).getPointeeType()">]> {
+
+  let arguments = (ins Clift_AnyValueType:$object);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
+
+  let assemblyFormat = [{
+    $object attr-dict `:` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_IndirectionOp
+  : Clift_ExpressionOp<"indirection",
+                       [TypesMatchWith<"result type must match the pointee type of the pointer type",
+                                       "pointer",
+                                       "result",
+                                       "mlir::cast<PointerType>($_self).getPointeeType()">]> {
+
+  let arguments = (ins Clift_AnyPointerType:$pointer);
+  let results = (outs Clift_AnyValueType:$result);
+
+  let assemblyFormat = [{
+    $pointer attr-dict `:` type($pointer)
+  }];
+
+  let extraClassDeclaration = [{
+    bool isLvalueExpression() {
+      return true;
+    }
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_AssignOp
+  : Clift_ExpressionOp<"assign",
+                       [AllTypesMatch<["lhs", "result"]>]> {
+
+  let arguments = (ins Clift_AnyValueType:$lhs,
+                       Clift_AnyValueType:$rhs);
+
+  let results = (outs Clift_AnyValueType:$result);
+
+  let assemblyFormat = [{
+    $lhs $rhs attr-dict `:`
+    custom<CliftOpOperandTypes>(type($lhs), type($rhs))
+  }];
+
+  let extraClassDeclaration = [{
+    bool isLvalueExpression() {
+      return true;
+    }
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_ObjectAccessOp : Clift_ExpressionOp<"object_access"> {
+  let arguments = (ins Clift_AnyValueType:$object,
+                       I64Attr:$member_index);
+
+  let results = (outs Clift_AnyValueType:$result);
+
+  let assemblyFormat = [{
+    $object $member_index attr-dict `:` type($object) `->` type($result)
+  }];
+
+  let extraClassDeclaration = [{
+    bool isLvalueExpression();
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_PointerAccessOp : Clift_ExpressionOp<"pointer_access"> {
+  let arguments = (ins Clift_AnyPointerType:$pointer,
+                       I64Attr:$member_index);
+
+  let results = (outs Clift_AnyValueType:$result);
+
+  let assemblyFormat = [{
+    $pointer $member_index attr-dict `:` type($pointer) `->` type($result)
+  }];
+
+  let extraClassDeclaration = [{
+    bool isLvalueExpression() {
+      return true;
+    }
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_SubscriptOp
+  : Clift_ExpressionOp<"subscript",
+                       [TypesMatchWith<"result type must match the pointee type of the pointer type",
+                                       "pointer",
+                                       "result",
+                                       "mlir::cast<PointerType>($_self).getPointeeType()">]> {
+  let arguments = (ins Clift_AnyValueType:$pointer,
+                       Clift_AnyIntegerType:$index);
+
+  let results = (outs Clift_AnyValueType:$result);
+
+  let assemblyFormat = [{
+    $pointer $index attr-dict `:` `(` type($pointer) `,` type($index) `)`
+  }];
+
+  let extraClassDeclaration = [{
+    bool isLvalueExpression() {
+      return true;
+    }
+  }];
+
+  let hasVerifier = 1;
+}
+
 #endif

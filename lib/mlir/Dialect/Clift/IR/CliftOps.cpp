@@ -896,3 +896,227 @@ mlir::LogicalResult YieldOp::verify() {
 
   return mlir::success();
 }
+
+//===------------------------------- CastOp -------------------------------===//
+
+mlir::LogicalResult CastOp::verify() {
+  auto ResT = mlir::cast<ValueType>(getResult().getType());
+
+  if (ResT.isConst())
+    return emitOpError() << getOperationName()
+                         << " result must have unqualified type.";
+
+  auto ArgT = mlir::cast<ValueType>(getValue().getType());
+
+  switch (getKind()) {
+  case CastKind::ZeroExtend: {
+    auto ResUnderlyingT = getUnderlyingIntegerType(ResT);
+    if (not ResUnderlyingT
+        or ResUnderlyingT.getKind() != PrimitiveKind::UnsignedKind)
+      return emitOpError() << " result must have unsigned integer type.";
+
+    auto ArgUnderlyingT = getUnderlyingIntegerType(ArgT);
+    if (not ArgUnderlyingT
+        or ResUnderlyingT.getKind() != PrimitiveKind::UnsignedKind)
+      return emitOpError() << " argument must have unsigned integer type.";
+
+    if (ResUnderlyingT.getSize() <= ArgUnderlyingT.getSize())
+      return emitOpError() << " result type must be wider than the argument"
+                              " type.";
+  } break;
+  case CastKind::SignExtend: {
+    auto ResUnderlyingT = getUnderlyingIntegerType(ResT);
+    if (not ResUnderlyingT
+        or ResUnderlyingT.getKind() != PrimitiveKind::SignedKind)
+      return emitOpError() << " result must have signed integer type.";
+
+    auto ArgUnderlyingT = getUnderlyingIntegerType(ArgT);
+    if (not ArgUnderlyingT
+        or ResUnderlyingT.getKind() != PrimitiveKind::SignedKind)
+      return emitOpError() << " argument must have signed integer type.";
+
+    if (ResUnderlyingT.getSize() <= ArgUnderlyingT.getSize())
+      return emitOpError() << " result type must be wider than the argument"
+                              " type.";
+  } break;
+  case CastKind::Truncate: {
+    auto ResPrimitiveT = mlir::dyn_cast<PrimitiveType>(ResT);
+    if (not ResPrimitiveT or not isIntegerKind(ResPrimitiveT.getKind()))
+      return emitOpError() << " result must have integer type.";
+
+    auto ArgPrimitiveT = mlir::dyn_cast<PrimitiveType>(ArgT);
+    if (not ArgPrimitiveT or not isIntegerKind(ArgPrimitiveT.getKind()))
+      return emitOpError() << " argument must have integer type.";
+
+    if (ResPrimitiveT.getSize() >= ArgPrimitiveT.getSize())
+      return emitOpError() << " result type must be narrower than the argument"
+                              " type.";
+  } break;
+  case CastKind::Identity: {
+    if (not isObjectType(ResT) or isArrayType(ResT))
+      return emitOpError() << " result must have non-array object type.";
+
+    if (not isObjectType(ArgT) or isArrayType(ArgT))
+      return emitOpError() << " argument must have non-array object type.";
+
+    if (ResT.getByteSize() != ArgT.getByteSize())
+      return emitOpError() << " result and argument types must be equal in"
+                              " size.";
+  } break;
+  case CastKind::Decay: {
+    auto PtrT = mlir::dyn_cast<PointerType>(ResT);
+    if (not PtrT)
+      return emitOpError() << getOperationName()
+                           << " result must have pointer type.";
+
+    if (auto ArrayT = mlir::dyn_cast<ArrayType>(ArgT)) {
+      if (PtrT.getPointeeType() != ArrayT.getElementType())
+        return emitOpError() << getOperationName()
+                             << " the pointee type of the result type must be"
+                                " equal to the element type of the argument"
+                                " type.";
+    } else if (auto DefinedT = mlir::dyn_cast<DefinedType>(ArgT)) {
+      auto const
+        FunctionT = mlir::dyn_cast<FunctionTypeAttr>(DefinedT.getElementType());
+
+      if (not FunctionT)
+        return emitOpError() << getOperationName()
+                             << " argument must have array or function type.";
+
+      if (PtrT.getPointeeType() != DefinedT)
+        return emitOpError() << getOperationName()
+                             << " the pointee type of the result type must be"
+                                " equal to the argument type.";
+    } else {
+      return emitOpError() << getOperationName()
+                           << " argument must have array or function type.";
+    }
+  } break;
+
+  default:
+    revng_abort("Invalid CastKind value");
+  }
+
+  return mlir::success();
+}
+
+//===----------------------------- AddressofOp ----------------------------===//
+
+mlir::LogicalResult AddressofOp::verify() {
+  if (not clift::isLvalueExpression(getObject()))
+    return emitOpError() << getOperationName()
+                         << " operand must be an lvalue-expression.";
+
+  return mlir::success();
+}
+
+//===---------------------------- IndirectionOp ---------------------------===//
+
+mlir::LogicalResult IndirectionOp::verify() {
+  if (isVoid(getResult().getType()))
+    return emitOpError() << getOperationName()
+                         << " cannot dereference a pointer to void.";
+
+  return mlir::success();
+}
+
+//===------------------------------ AssignOp ------------------------------===//
+
+mlir::LogicalResult AssignOp::verify() {
+  auto Type = mlir::cast<clift::ValueType>(getLhs().getType());
+  auto [UnderlyingType, HasConst] = decomposeTypedef(Type);
+
+  if (HasConst or UnderlyingType.isConst())
+    return emitOpError() << getOperationName()
+                         << " left operand type must be non-const.";
+
+  if (not clift::isLvalueExpression(getLhs()))
+    return emitOpError() << getOperationName()
+                         << " left operand must be an lvalue-expression.";
+
+  return mlir::success();
+}
+
+//===--------------------------- ObjectAccessOp ---------------------------===//
+
+static ValueType getField(ValueType ClassType, size_t Index) {
+  const auto GetField = [&](llvm::ArrayRef<FieldAttr> Fields) -> ValueType {
+    if (Index < Fields.size())
+      return Fields[Index].getType();
+    return nullptr;
+  };
+
+  auto T = mlir::cast<DefinedType>(ClassType);
+  if (auto D = mlir::dyn_cast<StructTypeAttr>(T.getElementType()))
+    return GetField(D.getFields());
+  if (auto D = mlir::dyn_cast<UnionTypeAttr>(T.getElementType()))
+    return GetField(D.getFields());
+
+  return nullptr;
+}
+
+bool ObjectAccessOp::isLvalueExpression() {
+  return clift::isLvalueExpression(getObject());
+}
+
+mlir::LogicalResult ObjectAccessOp::verify() {
+  auto ObjectT = dealias(getObject().getType());
+
+  if (not isClassType(ObjectT))
+    return emitOpError() << getOperationName()
+                         << " operand must have class type.";
+
+  auto FieldT = getField(ObjectT, getMemberIndex());
+  if (FieldT == nullptr)
+    return emitOpError() << getOperationName()
+                         << " class member index out of range.";
+  if (FieldT != getResult().getType())
+    return emitOpError() << getOperationName()
+                         << " result type must match the selected member type.";
+
+  return mlir::success();
+}
+
+//===--------------------------- PointerAccessOp --------------------------===//
+
+mlir::LogicalResult PointerAccessOp::verify() {
+  auto PointerT = mlir::dyn_cast<PointerType>(getPointer().getType());
+  if (not PointerT)
+    return emitOpError() << getOperationName()
+                         << " operand must have pointer type.";
+
+  auto PointeeT = PointerT.getPointeeType();
+  if (not isClassType(PointeeT))
+    return emitOpError() << getOperationName()
+                         << " operand type must be a pointer to class type.";
+
+  auto FieldT = getField(PointeeT, getMemberIndex());
+  if (FieldT == nullptr)
+    return emitOpError() << getOperationName()
+                         << " class member index must be valid.";
+  if (FieldT != getResult().getType())
+    return emitOpError() << getOperationName()
+                         << " result type must match the selected member type.";
+
+  return mlir::success();
+}
+
+//===----------------------------- SubscriptOp ----------------------------===//
+
+mlir::LogicalResult SubscriptOp::verify() {
+  auto PointerT = mlir::dyn_cast<PointerType>(getPointer().getType());
+  if (not PointerT)
+    return emitOpError() << getOperationName()
+                         << " operand must have pointer type.";
+
+  auto PointeeT = PointerT.getPointeeType();
+  if (isVoid(PointeeT))
+    return emitOpError() << getOperationName()
+                         << " cannot dereference a pointer to void.";
+
+  if (getResult().getType() != PointeeT)
+    return emitOpError() << getOperationName()
+                         << " result type must match the pointer type.";
+
+  return mlir::success();
+}
