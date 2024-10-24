@@ -10,4 +10,4 @@
 %value = clift.undef : !uint16_t
 
 // CHECK: result must have signed integer type
-clift.cast sext %value : !uint16_t -> !uint32_t
+clift.cast<sext> %value : !uint16_t -> !uint32_t

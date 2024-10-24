@@ -4,8 +4,7 @@
 
 // RUN: %revngcliftopt %s
 
-!int16_t = !clift.primitive<SignedKind 2>
 !int32_t = !clift.primitive<SignedKind 4>
 
-%value = clift.undef : !int16_t
-clift.cast<sext> %value : !int16_t -> !int32_t
+%lvalue = clift.local !int32_t "x"
+clift.inc %lvalue : !int32_t

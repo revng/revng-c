@@ -9,4 +9,4 @@
 %value = clift.undef : !uint32_t
 
 // CHECK: result type must be wider than the argument type
-clift.cast zext %value : !uint32_t -> !uint32_t
+clift.cast<zext> %value : !uint32_t -> !uint32_t

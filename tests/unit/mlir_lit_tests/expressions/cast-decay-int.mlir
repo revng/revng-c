@@ -10,4 +10,4 @@
 %int = clift.undef : !int32_t
 
 // CHECK: argument must have array or function type
-clift.cast decay %int : !int32_t -> !int32_t$ptr
+clift.cast<decay> %int : !int32_t -> !int32_t$ptr

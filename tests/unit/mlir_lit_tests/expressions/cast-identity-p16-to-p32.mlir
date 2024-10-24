@@ -11,4 +11,4 @@
 %p = clift.undef : !int32_t$ptr32
 
 // CHECK: result and argument types must be equal in size
-clift.cast ident %p : !int32_t$ptr32 -> !int32_t$ptr64
+clift.cast<ident> %p : !int32_t$ptr32 -> !int32_t$ptr64

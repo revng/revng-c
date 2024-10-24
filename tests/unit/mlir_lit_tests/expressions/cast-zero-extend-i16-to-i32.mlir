@@ -10,4 +10,4 @@
 %value = clift.undef : !int16_t
 
 // CHECK: result must have unsigned integer type
-clift.cast zext %value : !int16_t -> !int32_t
+clift.cast<zext> %value : !int16_t -> !int32_t

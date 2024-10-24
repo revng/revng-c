@@ -6,7 +6,7 @@
 
 !int32_t = !clift.primitive<SignedKind 4>
 
-%value = clift.undef : !int32_t
+%rvalue = clift.imm 0 : !int32_t
 
-// CHECK: result type must be wider than the argument type
-clift.cast<sext> %value : !int32_t -> !int32_t
+// CHECK: operand must be an lvalue-expression
+clift.assign %rvalue, %rvalue : !int32_t

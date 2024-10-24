@@ -20,5 +20,5 @@
 
 %0 = clift.undef : !s
 
-// CHECK: class member index out of range
-%1 = clift.object_access %0 1 : !s -> !int32_t
+// CHECK: struct or union member index out of range
+%1 = clift.object_access<1> %0 : !s -> !int32_t

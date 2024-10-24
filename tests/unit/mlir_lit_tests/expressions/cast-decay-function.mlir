@@ -14,4 +14,4 @@
 !function$ptr = !clift.pointer<pointee_type = !function, pointer_size = 8>
 
 %function = clift.undef : !function
-clift.cast decay %function : !function -> !function$ptr
+clift.cast<decay> %function : !function -> !function$ptr

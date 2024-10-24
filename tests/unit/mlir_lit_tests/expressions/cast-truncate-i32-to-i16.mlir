@@ -8,4 +8,4 @@
 !int32_t = !clift.primitive<SignedKind 4>
 
 %value = clift.undef : !int32_t
-clift.cast trunc %value : !int32_t -> !int16_t
+clift.cast<trunc> %value : !int32_t -> !int16_t

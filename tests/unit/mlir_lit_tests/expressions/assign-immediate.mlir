@@ -5,8 +5,9 @@
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
 !int32_t = !clift.primitive<SignedKind 4>
+!int32_t$const = !clift.primitive<is_const = true, SignedKind 4>
 
-%rvalue = clift.imm 0 : !int32_t
+%lvalue = clift.local !int32_t$const "x"
 
-// CHECK: operand must be an lvalue-expression
-clift.assign %rvalue %rvalue : !int32_t
+// CHECK: operand #0 must be modifiable
+clift.assign %lvalue, %lvalue : !int32_t$const

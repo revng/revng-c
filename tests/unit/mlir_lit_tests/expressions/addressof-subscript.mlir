@@ -9,5 +9,5 @@
 
 %ptr = clift.undef : !int32_t$ptr
 %rvalue = clift.imm 0 : !int32_t
-%lvalue = clift.subscript %ptr %rvalue : (!int32_t$ptr, !int32_t)
+%lvalue = clift.subscript %ptr, %rvalue : (!int32_t$ptr, !int32_t)
 clift.addressof %lvalue : !int32_t$ptr

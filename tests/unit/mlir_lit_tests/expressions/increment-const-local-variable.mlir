@@ -5,8 +5,9 @@
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
 !int32_t = !clift.primitive<SignedKind 4>
+!int32_t$const = !clift.primitive<is_const = true, SignedKind 4>
 
-%value = clift.undef : !int32_t
+%lvalue = clift.local !int32_t$const "x"
 
-// CHECK: result type must be wider than the argument type
-clift.cast<sext> %value : !int32_t -> !int32_t
+// CHECK: operand #0 must be modifiable
+clift.inc %lvalue : !int32_t$const

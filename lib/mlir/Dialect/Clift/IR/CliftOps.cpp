@@ -45,8 +45,9 @@ static ValueType getExpressionType(Region &R) {
 }
 
 static FunctionTypeAttr getFunctionTypeAttr(mlir::Type Type) {
-  auto T = mlir::cast<DefinedType>(dealias(Type));
-  return mlir::cast<FunctionTypeAttr>(T.getElementType());
+  if (auto T = mlir::dyn_cast<DefinedType>(dealias(Type)))
+    return mlir::dyn_cast<FunctionTypeAttr>(T.getElementType());
+  return {};
 }
 
 //===-------------------------- Type constraints --------------------------===//
@@ -897,6 +898,16 @@ mlir::LogicalResult YieldOp::verify() {
   return mlir::success();
 }
 
+//===----------------------- UnaryIntegerMutationOp -----------------------===//
+
+mlir::LogicalResult clift::impl::verifyUnaryIntegerMutationOp(Operation *Op) {
+  if (not mlir::clift::isLvalueExpression(Op->getOperand(0)))
+    return Op->emitOpError() << Op->getName()
+                             << " operand must be an lvalue-expression.";
+
+  return mlir::success();
+}
+
 //===------------------------------- CastOp -------------------------------===//
 
 mlir::LogicalResult CastOp::verify() {
@@ -947,6 +958,10 @@ mlir::LogicalResult CastOp::verify() {
     auto ArgPrimitiveT = mlir::dyn_cast<PrimitiveType>(ArgT);
     if (not ArgPrimitiveT or not isIntegerKind(ArgPrimitiveT.getKind()))
       return emitOpError() << " argument must have integer type.";
+
+    if (ResPrimitiveT.getKind() != ArgPrimitiveT.getKind())
+      return emitOpError() << " result and argument types must be equal in"
+                              " kind.";
 
     if (ResPrimitiveT.getSize() >= ArgPrimitiveT.getSize())
       return emitOpError() << " result type must be narrower than the argument"
@@ -1023,13 +1038,6 @@ mlir::LogicalResult IndirectionOp::verify() {
 //===------------------------------ AssignOp ------------------------------===//
 
 mlir::LogicalResult AssignOp::verify() {
-  auto Type = mlir::cast<clift::ValueType>(getLhs().getType());
-  auto [UnderlyingType, HasConst] = decomposeTypedef(Type);
-
-  if (HasConst or UnderlyingType.isConst())
-    return emitOpError() << getOperationName()
-                         << " left operand type must be non-const.";
-
   if (not clift::isLvalueExpression(getLhs()))
     return emitOpError() << getOperationName()
                          << " left operand must be an lvalue-expression.";
@@ -1064,12 +1072,12 @@ mlir::LogicalResult ObjectAccessOp::verify() {
 
   if (not isClassType(ObjectT))
     return emitOpError() << getOperationName()
-                         << " operand must have class type.";
+                         << " operand must have struct or union type.";
 
   auto FieldT = getField(ObjectT, getMemberIndex());
   if (FieldT == nullptr)
     return emitOpError() << getOperationName()
-                         << " class member index out of range.";
+                         << " struct or union member index out of range.";
   if (FieldT != getResult().getType())
     return emitOpError() << getOperationName()
                          << " result type must match the selected member type.";
@@ -1088,12 +1096,13 @@ mlir::LogicalResult PointerAccessOp::verify() {
   auto PointeeT = PointerT.getPointeeType();
   if (not isClassType(PointeeT))
     return emitOpError() << getOperationName()
-                         << " operand type must be a pointer to class type.";
+                         << " operand type must be a pointer to struct or union"
+                            " type.";
 
   auto FieldT = getField(PointeeT, getMemberIndex());
   if (FieldT == nullptr)
     return emitOpError() << getOperationName()
-                         << " class member index must be valid.";
+                         << " struct or union member index must be valid.";
   if (FieldT != getResult().getType())
     return emitOpError() << getOperationName()
                          << " result type must match the selected member type.";
@@ -1110,13 +1119,188 @@ mlir::LogicalResult SubscriptOp::verify() {
                          << " operand must have pointer type.";
 
   auto PointeeT = PointerT.getPointeeType();
-  if (isVoid(PointeeT))
+  if (not isObjectType(PointeeT))
     return emitOpError() << getOperationName()
-                         << " cannot dereference a pointer to void.";
+                         << " cannot dereference pointer to non-object type.";
 
   if (getResult().getType() != PointeeT)
     return emitOpError() << getOperationName()
                          << " result type must match the pointer type.";
+
+  return mlir::success();
+}
+
+//===-------------------------------- UseOp -------------------------------===//
+
+mlir::LogicalResult
+UseOp::verifySymbolUses(SymbolTableCollection &SymbolTable) {
+  auto Module = getOperation()->getParentOfType<clift::ModuleOp>();
+  Operation *Op = SymbolTable.lookupSymbolIn(Module, getSymbolNameAttr());
+
+  /*  */ if (auto V = mlir::dyn_cast_or_null<GlobalVariableOp>(Op)) {
+    if (getResult().getType() != V.getType())
+      return emitOpError() << getOperationName()
+                           << " result type must match the type of the global"
+                              " variable being referenced.";
+  } else if (auto F = mlir::dyn_cast_or_null<FunctionOp>(Op)) {
+    if (getResult().getType() != F.getFunctionType())
+      return emitOpError() << getOperationName()
+                           << " result type must match the type of the function"
+                              " being referenced.";
+  } else {
+    return emitOpError() << getOperationName()
+                         << " must reference a global variable or function in"
+                            " the enclosing 'clift.module' operation.";
+  }
+
+  return mlir::success();
+}
+
+//===-------------------------------- CallOp ------------------------------===//
+
+static FunctionTypeAttr getFunctionOrFunctionPointerTypeAttr(ValueType Type) {
+  ValueType ValueT = decomposeTypedef(Type).Type;
+  if (auto P = mlir::dyn_cast<PointerType>(ValueT))
+    ValueT = decomposeTypedef(P.getPointeeType()).Type;
+  return getFunctionTypeAttr(ValueT);
+}
+
+mlir::ParseResult CallOp::parse(OpAsmParser &Parser, OperationState &Result) {
+  OpAsmParser::UnresolvedOperand FunctionOperand;
+  if (Parser.parseOperand(FunctionOperand).failed())
+    return mlir::failure();
+
+  auto ArgumentOperandsLoc = Parser.getCurrentLocation();
+  llvm::SmallVector<OpAsmParser::UnresolvedOperand, 4> ArgumentOperands;
+  if (Parser.parseLParen().failed())
+    return mlir::failure();
+  if (Parser.parseOperandList(ArgumentOperands).failed())
+    return mlir::failure();
+  if (Parser.parseRParen().failed())
+    return mlir::failure();
+
+  if (Parser.parseOptionalAttrDict(Result.attributes).failed())
+    return mlir::failure();
+
+  if (Parser.parseColon().failed())
+    return mlir::failure();
+
+  mlir::SMLoc FunctionTypeLoc = Parser.getCurrentLocation();
+  clift::ValueType FunctionType;
+  if (Parser.parseType(FunctionType).failed())
+    return mlir::failure();
+
+  auto FunctionTypeAttr = getFunctionOrFunctionPointerTypeAttr(FunctionType);
+  if (not FunctionTypeAttr)
+    return Parser.emitError(FunctionTypeLoc) << "expected Clift function or "
+                                                "pointer-to-function type";
+
+  clift::ValueType ResultType;
+  llvm::SmallVector<mlir::Type, 4> ArgumentTypes;
+
+  if (Parser.parseOptionalKeyword("as").succeeded()) {
+    if (Parser.parseLParen().failed())
+      return mlir::failure();
+
+    if (Parser.parseTypeList(ArgumentTypes).failed())
+      return mlir::failure();
+
+    if (Parser.parseRParen().failed())
+      return mlir::failure();
+  } else {
+    auto ParameterTypes = FunctionTypeAttr.getArgumentTypes();
+    ArgumentTypes.reserve(ParameterTypes.size());
+
+    for (mlir::Type T : ParameterTypes)
+      ArgumentTypes.push_back(mlir::cast<clift::ValueType>(T).removeConst());
+  }
+
+  Result.addTypes(FunctionTypeAttr.getResultTypes());
+
+  if (Parser.resolveOperand(FunctionOperand,
+                            FunctionType,
+                            Result.operands).failed())
+    return mlir::failure();
+
+  if (Parser.resolveOperands(ArgumentOperands,
+                             ArgumentTypes,
+                             ArgumentOperandsLoc,
+                             Result.operands).failed())
+    return mlir::failure();
+
+  return mlir::success();
+}
+
+void CallOp::print(OpAsmPrinter &Printer) {
+  Printer << ' ';
+  Printer << getFunction();
+  Printer << ' ';
+  Printer << getArguments();
+
+  Printer.printOptionalAttrDict(getOperation()->getAttrs(), {});
+  Printer << ' ' << ':' << ' ';
+
+  auto FunctionType = getFunction().getType();
+  Printer << FunctionType;
+
+  auto FunctionTypeAttr = getFunctionOrFunctionPointerTypeAttr(FunctionType);
+  revng_assert(FunctionTypeAttr); // Checked by verify.
+
+  auto ArgumentTypes = getArguments().getTypes();
+  auto ParameterTypes = FunctionTypeAttr.getArgumentTypes();
+
+  bool RequiresExplicitArgumentTypes = false;
+  for (auto [ArgumentT, ParameterT] : llvm::zip_equal(ArgumentTypes,
+                                                      ParameterTypes)) {
+    auto ParameterValueT = mlir::cast<clift::ValueType>(ParameterT);
+
+    if (ArgumentT != ParameterValueT.removeConst()) {
+      RequiresExplicitArgumentTypes = true;
+      break;
+    }
+  }
+
+  if (RequiresExplicitArgumentTypes) {
+    Printer << ' ' << "as" << ' ' << '(';
+    Printer << getArguments().getTypes();
+    Printer << ')';
+  }
+}
+
+mlir::LogicalResult CallOp::verify() {
+  auto FunctionType = mlir::cast<clift::ValueType>(getFunction().getType());
+  auto FunctionTypeAttr = getFunctionOrFunctionPointerTypeAttr(FunctionType);
+  if (not FunctionTypeAttr)
+    return emitOpError() << getOperationName()
+                         << " function argument must have function or pointer"
+                         << "-to-function type.";
+
+  auto ArgumentTypes = getArguments().getTypes();
+  auto ParameterTypes = FunctionTypeAttr.getArgumentTypes();
+
+  if (ArgumentTypes.size() != ParameterTypes.size())
+    return emitOpError() << getOperationName()
+                         << " argument count must match the number of function"
+                            " parameters.";
+
+  for (auto [ArgumentT, ParameterT] : llvm::zip_equal(ArgumentTypes,
+                                                      ParameterTypes)) {
+    auto ArgumentValueT = mlir::cast<clift::ValueType>(ArgumentT);
+    auto ParameterValueT = mlir::cast<clift::ValueType>(ParameterT);
+
+    if (ArgumentValueT.removeConst() != ParameterValueT.removeConst())
+      return emitOpError() << getOperationName()
+                           << " argument types must match the parameter types"
+                              " of the function, ignoring qualifiers.";
+  }
+
+  auto ReturnT = mlir::cast<clift::ValueType>(FunctionTypeAttr.getReturnType());
+  auto ResultT = mlir::cast<clift::ValueType>(getResult().getType());
+
+  if (ResultT != ReturnT.removeConst())
+    return emitOpError() << getOperationName()
+                         << " result type must match the return type of the"
+                            " function, ignoring qualifiers.";
 
   return mlir::success();
 }

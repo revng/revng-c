@@ -8,4 +8,4 @@
 !uint32_t = !clift.primitive<UnsignedKind 4>
 
 %value = clift.undef : !uint16_t
-clift.cast zext %value : !uint16_t -> !uint32_t
+clift.cast<zext> %value : !uint16_t -> !uint32_t
