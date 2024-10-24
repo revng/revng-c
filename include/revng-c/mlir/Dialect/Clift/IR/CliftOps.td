@@ -26,23 +26,23 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 
 def Clift_AnyValueType
   : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
-         "Clift value type",
+         "a Clift value type",
          "mlir::clift::ValueType">;
 
 class Clift_AnyPrimitiveTypeOf<string Kind>
   : Type<CPred<"mlir::clift::impl::verifyPrimitiveTypeOf($_self," #
                                                          "mlir::clift::PrimitiveKind::" # Kind # ")">,
-         "Clift primitive type of " # Kind,
+         "a Clift primitive type of " # Kind,
          "mlir::clift::PrimitiveType">;
 
 def Clift_AnyScalarType
   : Type<CPred<"mlir::clift::isScalarType($_self)">,
-         "Clift scalar type",
+         "a Clift scalar type",
          "mlir::clift::ValueType">;
 
 def Clift_AnyIntegerType
   : Type<CPred<"mlir::clift::isIntegerType($_self)">,
-         "Clift integer type",
+         "a Clift integer type",
          "mlir::clift::ValueType">;
 
 def Clift_AnyPrimitiveIntegerType
@@ -52,18 +52,18 @@ def Clift_AnyPrimitiveIntegerType
 
 def Clift_AnyPointerType
   : Type<CPred<"mlir::clift::isPointerType($_self)">,
-         "Clift pointer type",
+         "a Clift pointer type",
          "mlir::clift::PointerType">;
 
 def Clift_AnyFunctionType
   : Type<CPred<"mlir::clift::isFunctionType($_self)">,
-         "Clift function type",
+         "a Clift function type",
          "mlir::clift::ValueType">;
 
 class Clift_AnyNonConstType<Type type>
   : Type<And<[type.predicate,
               CPred<"not mlir::cast<mlir::clift::ValueType>($_self).isConst()">]>,
-         "Non-const Clift type",
+         "non-const",
          "mlir::clift::ValueType">;
 
 class Clift_AnyModifiableType<Type type>
