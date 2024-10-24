@@ -45,6 +45,11 @@ def Clift_AnyIntegerType
          "Clift integer type",
          "mlir::clift::ValueType">;
 
+def Clift_AnyPrimitiveIntegerType
+  : Type<CPred<"mlir::clift::isPrimitiveIntegerType($_self)">,
+         "a primitive Clift integer type",
+         "mlir::clift::PrimitiveType">;
+
 def Clift_AnyPointerType
   : Type<CPred<"mlir::isa<mlir::clift::PointerType>($_self)">,
          "Clift pointer type",
@@ -59,6 +64,12 @@ class Clift_AnyNonConstType<Type type>
   : Type<And<[type.predicate,
               CPred<"not mlir::cast<mlir::clift::ValueType>($_self).isConst()">]>,
          "Non-const Clift type",
+         "mlir::clift::ValueType">;
+
+class Clift_AnyModifiableType<Type type>
+  : Type<And<[type.predicate,
+              CPred<"mlir::clift::impl::verifyModifiableType($_self)">]>,
+         "modifiable",
          "mlir::clift::ValueType">;
 
 class Clift_AllTypesMatch<list<string> names>

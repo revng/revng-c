@@ -31,6 +31,8 @@ bool verifyScalarType(ValueType Type);
 bool verifyPointerType(ValueType Type);
 bool verifyFunctionType(ValueType Type);
 
+bool verifyModifiableType(ValueType Type);
+
 Type removeConst(Type T);
 
 } // namespace mlir::clift::impl

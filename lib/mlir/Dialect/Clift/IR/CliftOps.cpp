@@ -75,6 +75,11 @@ bool clift::impl::verifyFunctionType(ValueType Type) {
   return T and mlir::isa<FunctionTypeAttr>(T.getElementType());
 }
 
+bool clift::impl::verifyModifiableType(ValueType Type) {
+  auto [UnderlyingType, HasConst] = decomposeTypedef(Type);
+  return not HasConst and not UnderlyingType.isConst();
+}
+
 Type clift::impl::removeConst(Type T) {
   if (auto VT = mlir::dyn_cast<ValueType>(T))
     return VT.removeConst();
