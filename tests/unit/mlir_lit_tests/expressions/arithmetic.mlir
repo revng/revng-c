@@ -26,7 +26,6 @@ clift.bitxor %1, %1 : !int32_t
 
 clift.shl %1, %1 : !int32_t
 clift.shr %1, %1 : !int32_t
-clift.sar %1, %1 : !int32_t
 
 clift.eq %1, %1 : !int32_t -> !int32_t
 clift.ne %1, %1 : !int32_t -> !int32_t

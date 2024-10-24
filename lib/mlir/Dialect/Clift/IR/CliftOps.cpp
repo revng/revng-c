@@ -919,55 +919,32 @@ mlir::LogicalResult CastOp::verify() {
 
   auto ArgT = mlir::cast<ValueType>(getValue().getType());
 
-  switch (getKind()) {
-  case CastKind::ZeroExtend: {
-    auto ResUnderlyingT = getUnderlyingIntegerType(ResT);
-    if (not ResUnderlyingT
-        or ResUnderlyingT.getKind() != PrimitiveKind::UnsignedKind)
-      return emitOpError() << " result must have unsigned integer type.";
-
-    auto ArgUnderlyingT = getUnderlyingIntegerType(ArgT);
-    if (not ArgUnderlyingT
-        or ResUnderlyingT.getKind() != PrimitiveKind::UnsignedKind)
-      return emitOpError() << " argument must have unsigned integer type.";
-
-    if (ResUnderlyingT.getSize() <= ArgUnderlyingT.getSize())
-      return emitOpError() << " result type must be wider than the argument"
-                              " type.";
-  } break;
-  case CastKind::SignExtend: {
-    auto ResUnderlyingT = getUnderlyingIntegerType(ResT);
-    if (not ResUnderlyingT
-        or ResUnderlyingT.getKind() != PrimitiveKind::SignedKind)
-      return emitOpError() << " result must have signed integer type.";
-
-    auto ArgUnderlyingT = getUnderlyingIntegerType(ArgT);
-    if (not ArgUnderlyingT
-        or ResUnderlyingT.getKind() != PrimitiveKind::SignedKind)
-      return emitOpError() << " argument must have signed integer type.";
-
-    if (ResUnderlyingT.getSize() <= ArgUnderlyingT.getSize())
-      return emitOpError() << " result type must be wider than the argument"
-                              " type.";
-  } break;
+  switch (auto Kind = getKind()) {
+  case CastKind::Extend:
   case CastKind::Truncate: {
-    auto ResPrimitiveT = mlir::dyn_cast<PrimitiveType>(ResT);
-    if (not ResPrimitiveT or not isIntegerKind(ResPrimitiveT.getKind()))
+    auto ResUnderlyingT = getUnderlyingIntegerType(ResT);
+    if (not ResUnderlyingT)
       return emitOpError() << " result must have integer type.";
 
-    auto ArgPrimitiveT = mlir::dyn_cast<PrimitiveType>(ArgT);
-    if (not ArgPrimitiveT or not isIntegerKind(ArgPrimitiveT.getKind()))
+    auto ArgUnderlyingT = getUnderlyingIntegerType(ArgT);
+    if (not ArgUnderlyingT)
       return emitOpError() << " argument must have integer type.";
 
-    if (ResPrimitiveT.getKind() != ArgPrimitiveT.getKind())
+    if (ResUnderlyingT.getKind() != ArgUnderlyingT.getKind())
       return emitOpError() << " result and argument types must be equal in"
                               " kind.";
 
-    if (ResPrimitiveT.getSize() >= ArgPrimitiveT.getSize())
-      return emitOpError() << " result type must be narrower than the argument"
-                              " type.";
+    if (Kind == CastKind::Extend) {
+      if (ResUnderlyingT.getSize() <= ArgUnderlyingT.getSize())
+        return emitOpError() << " result type must be wider than the argument"
+                                " type.";
+    } else {
+      if (ResUnderlyingT.getSize() >= ArgUnderlyingT.getSize())
+        return emitOpError() << " result type must be narrower than the"
+                                " argument type.";
+    }
   } break;
-  case CastKind::Identity: {
+  case CastKind::Reinterpret: {
     if (not isObjectType(ResT) or isArrayType(ResT))
       return emitOpError() << " result must have non-array object type.";
 

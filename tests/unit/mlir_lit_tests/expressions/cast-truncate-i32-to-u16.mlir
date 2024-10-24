@@ -10,4 +10,4 @@
 %value = clift.undef : !int32_t
 
 // CHECK: result and argument types must be equal in kind
-clift.cast<trunc> %value : !int32_t -> !uint16_t
+clift.cast<truncate> %value : !int32_t -> !uint16_t

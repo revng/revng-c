@@ -541,8 +541,7 @@ def Clift_BitwiseOrOp : Clift_BinaryArithmeticOp<"bitor">;
 def Clift_BitwiseXorOp : Clift_BinaryArithmeticOp<"bitxor">;
 
 def Clift_ShiftLeftOp : Clift_ShiftOp<"shl">;
-def Clift_BitwiseShiftRightOp : Clift_ShiftOp<"shr">;
-def Clift_ArithmeticShiftRightOp : Clift_ShiftOp<"sar">;
+def Clift_ShiftRightOp : Clift_ShiftOp<"shr">;
 
 def Clift_EqualOp : Clift_ComparisonOp<"eq">;
 def Clift_NotEqualOp : Clift_ComparisonOp<"ne">;

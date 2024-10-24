@@ -5,9 +5,9 @@
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
 !int16_t = !clift.primitive<SignedKind 2>
-!int32_t = !clift.primitive<SignedKind 4>
+!uint32_t = !clift.primitive<UnsignedKind 4>
 
 %value = clift.undef : !int16_t
 
-// CHECK: result must have unsigned integer type
-clift.cast<zext> %value : !int16_t -> !int32_t
+// CHECK: result and argument types must be equal in kind
+clift.cast<extend> %value : !int16_t -> !uint32_t

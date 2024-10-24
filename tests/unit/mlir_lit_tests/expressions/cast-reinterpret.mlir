@@ -27,19 +27,19 @@
                                       ]>>
 
 %i = clift.undef : !int32_t
-clift.cast<ident> %i : !int32_t -> !uint32_t
-clift.cast<ident> %i : !int32_t -> !my_uint32
-clift.cast<ident> %i : !int32_t -> !my_enum
+clift.cast<reinterpret> %i : !int32_t -> !uint32_t
+clift.cast<reinterpret> %i : !int32_t -> !my_uint32
+clift.cast<reinterpret> %i : !int32_t -> !my_enum
 
 %t = clift.undef : !my_uint32
-clift.cast<ident> %t : !my_uint32 -> !int32_t
+clift.cast<reinterpret> %t : !my_uint32 -> !int32_t
 
 %e = clift.undef : !my_enum
-clift.cast<ident> %e : !my_enum -> !int32_t
+clift.cast<reinterpret> %e : !my_enum -> !int32_t
 
 %ip = clift.undef : !int32_t$ptr
-clift.cast<ident> %ip : !int32_t$ptr -> !uint32_t$ptr
-clift.cast<ident> %ip : !int32_t$ptr -> !int32_t$const$ptr
+clift.cast<reinterpret> %ip : !int32_t$ptr -> !uint32_t$ptr
+clift.cast<reinterpret> %ip : !int32_t$ptr -> !int32_t$const$ptr
 
 %icp = clift.undef : !int32_t$const$ptr
-clift.cast<ident> %icp : !int32_t$const$ptr -> !int32_t$ptr
+clift.cast<reinterpret> %icp : !int32_t$const$ptr -> !int32_t$ptr

@@ -10,4 +10,4 @@
 %i = clift.undef : !int16_t
 
 // CHECK: result and argument types must be equal in size
-clift.cast<ident> %i : !int16_t -> !int32_t
+clift.cast<reinterpret> %i : !int16_t -> !int32_t
