@@ -51,9 +51,35 @@ static FunctionTypeAttr getFunctionTypeAttr(mlir::Type Type) {
 
 //===-------------------------- Type constraints --------------------------===//
 
+bool clift::impl::verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind) {
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
+    return T.getKind() == Kind;
+
+  return false;
+}
+
+bool clift::impl::verifyScalarType(ValueType Type) {
+  return isScalarType(Type);
+}
+
+bool clift::impl::verifyIntegerType(ValueType Type) {
+  return isIntegerType(Type);
+}
+
+bool clift::impl::verifyPointerType(ValueType Type) {
+  return isPointerType(Type);
+}
+
 bool clift::impl::verifyFunctionType(ValueType Type) {
   auto T = mlir::dyn_cast<DefinedType>(dealias(Type));
   return T and mlir::isa<FunctionTypeAttr>(T.getElementType());
+}
+
+Type clift::impl::removeConst(Type T) {
+  if (auto VT = mlir::dyn_cast<ValueType>(T))
+    return VT.removeConst();
+
+  return T;
 }
 
 //===---------------------------- Region types ----------------------------===//
