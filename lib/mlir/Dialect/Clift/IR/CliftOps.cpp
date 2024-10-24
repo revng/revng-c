@@ -15,8 +15,6 @@
 #define GET_OP_CLASSES
 #include "revng-c/mlir/Dialect/Clift/IR/CliftOps.cpp.inc"
 
-#include "CliftTypeHelpers.h"
-
 using namespace mlir;
 using namespace mlir::clift;
 
@@ -636,7 +634,7 @@ mlir::LogicalResult MakeLabelOp::verify() {
 //===------------------------------ ReturnOp ------------------------------===//
 
 mlir::LogicalResult ReturnOp::verify() {
-  if (not verifyFunctionReturnType(getExpressionType(getResult())))
+  if (not isReturnableType(getExpressionType(getResult())))
     return emitOpError() << getOperationName()
                          << " requires void or non-array object type.";
 
