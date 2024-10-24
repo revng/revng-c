@@ -111,8 +111,6 @@ def Clift_DefinedType
   let assemblyFormat = [{
     `<` ( `is_const` `=` $is_const^ `,` ` ` )? $element_type `>`
   }];
-
-  let assemblyFormat = "`<`( `is_const` `=` $is_const^ `,`` ` )? $element_type `>` ";
 }
 
 def Clift_ArrayType
