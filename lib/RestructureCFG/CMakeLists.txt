@@ -14,12 +14,14 @@ revng_add_analyses_library(
   FallThroughScopeAnalysis.cpp
   GenericRegionInfo.cpp
   GenericRegionPass.cpp
+  GotoGraphLoggerPass.cpp
   InlineDispatcherSwitch.cpp
   MetaRegion.cpp
   PromoteCallNoReturn.cpp
   RegionCFGTree.cpp
   RemoveDeadCode.cpp
   RestructureCFG.cpp
+  ScopeGraphLoggerPass.cpp
   SimplifyCompareNode.cpp
   SimplifyDualSwitch.cpp
   SimplifyHybridNot.cpp
