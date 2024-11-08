@@ -6,6 +6,7 @@
 #include "llvm/Support/FormatVariadic.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Model/NameBuilder.h"
 
 #include "revng-c/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng-c/mlir/Dialect/Clift/IR/CliftAttributes.h"
