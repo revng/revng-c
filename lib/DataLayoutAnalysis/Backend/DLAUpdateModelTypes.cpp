@@ -25,7 +25,6 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
